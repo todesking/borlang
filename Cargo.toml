@@ -1,0 +1,13 @@
+[package]
+name = "borlang"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rust-sitter = "0.4.1"
+rustyline = "13.0.0"
+
+[build-dependencies]
+rust-sitter-tool = "0.4.1"
