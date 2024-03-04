@@ -119,5 +119,7 @@ pub mod grammar {
 }
 
 pub use grammar::parse;
+pub use grammar::Expr;
 pub use grammar::Program;
+
 pub use rust_sitter::errors::ParseError;
