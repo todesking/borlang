@@ -11,3 +11,8 @@ rustyline = "13.0.0"
 
 [build-dependencies]
 rust-sitter-tool = "0.4.1"
+
+[dev-dependencies]
+color-backtrace = "0.6.1"
+ctor = "0.2.7"
+pretty_assertions = "1.4.0"

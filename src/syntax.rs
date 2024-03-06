@@ -19,9 +19,9 @@ pub mod grammar {
             rhs: Box<Expr>,
         },
         #[rust_sitter::prec_left(2)]
-        BinOpMulDiv {
+        BinOpMul {
             lhs: Box<Expr>,
-            op: OpMulDiv,
+            op: OpMul,
             rhs: Box<Expr>,
         },
         #[rust_sitter::prec(9)]
@@ -110,11 +110,9 @@ pub mod grammar {
         Sub,
     }
     #[derive(Debug)]
-    pub enum OpMulDiv {
+    pub enum OpMul {
         #[rust_sitter::leaf(text = "*")]
         Mul,
-        #[rust_sitter::leaf(text = "/")]
-        Div,
     }
 }
 
