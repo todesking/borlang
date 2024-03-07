@@ -63,6 +63,11 @@ mod test {
     }
 
     #[test]
+    fn add_mul() {
+        assert_eval_ok!("1 + 2 * 3", 7);
+    }
+
+    #[test]
     fn block() {
         assert_eval_ok!("{}", Value::Null);
         assert_eval_ok!("{1}", 1);
