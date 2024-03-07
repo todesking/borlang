@@ -1,6 +1,16 @@
-use std::path::PathBuf;
-
 fn main() {
-    println!("cargo:rerun-if-changed=src");
-    rust_sitter_tool::build_parsers(&PathBuf::from("src/syntax.rs"));
+    let src_dir = ["tree-sitter-borlang", "src"]
+        .iter()
+        .collect::<std::path::PathBuf>();
+
+    let mut c_config = cc::Build::new();
+    c_config.include(&src_dir);
+    c_config
+        .flag_if_supported("-Wno-unused-parameter")
+        .flag_if_supported("-Wno-unused-but-set-variable")
+        .flag_if_supported("-Wno-trigraphs");
+    let parser_path = src_dir.join("parser.c");
+    c_config.file(&parser_path);
+    c_config.compile("parser");
+    println!("cargo:rerun-if-changed={}", parser_path.to_str().unwrap());
 }

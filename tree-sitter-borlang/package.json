@@ -1,0 +1,14 @@
+{
+  "name": "tree-sitter-borlang",
+  "version": "1.0.0",
+  "main": "bindings/node",
+  "scripts": {},
+  "author": "@todesking",
+  "volta": {
+    "node": "20.11.1"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "^0.21.0",
+    "typescript": "^5.4.2"
+  }
+}
