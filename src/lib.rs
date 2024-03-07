@@ -68,6 +68,13 @@ mod test {
     }
 
     #[test]
+    fn paren() {
+        assert_eval_ok!("(1)", 1);
+        assert_eval_ok!("(1 + 1)", 2);
+        assert_eval_ok!("2 * (3 + 4)", 14);
+    }
+
+    #[test]
     fn block() {
         assert_eval_ok!("{}", Value::Null);
         assert_eval_ok!("{1}", 1);
@@ -80,5 +87,24 @@ mod test {
     fn var() {
         assert_eval_err!("a", EvalError::NameNotFound("a".into()));
         assert_eval_ok!("{let a = 123; let b = 456; a}", 123);
+    }
+
+    #[test]
+    fn function() {
+        assert_eval_ok!("{let f = fn() => 123; f()}", 123);
+        assert_eval_ok!("(fn(x) => x + 1)(100)", 101);
+        assert_eval_ok!(
+            "{
+                let f = fn(x) => fn(y) => x + y;
+                let add1 = f(1);
+                add1(99)
+            }",
+            100
+        );
+        assert_eval_ok!("{ let x = 10; (fn() => x)() }", 10);
+        assert_eval_ok!("{ let x = 10; (fn(x) => x)(20) }", 20);
+        assert_eval_ok!("(fn(x,y,) => x + y)(1,2)", 3);
+        assert_eval_ok!("(fn(,) => 42)()", 42);
+        assert_eval_err!("(fn() => 42)(123)", EvalError::ArgumentLength(1));
     }
 }

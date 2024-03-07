@@ -1,4 +1,5 @@
 use crate::ast::TopTerm;
+use crate::value::RefValue;
 use crate::Expr;
 use crate::Program;
 use crate::Value;
@@ -11,7 +12,7 @@ use std::fmt::Display;
 pub enum EvalError {
     TypeError(String, Value),
     NameNotFound(String),
-    IllegalArgumentLength(usize),
+    ArgumentLength(usize),
 }
 impl Display for EvalError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -34,7 +35,7 @@ fn binop_int<F: Fn(i32, i32) -> EvalResult>(f: F) -> impl Fn(&[Value]) -> EvalRe
         [Value::Int(lhs), Value::Int(rhs)] => f(*lhs, *rhs),
         [Value::Int(_), rhs] => Err(EvalError::TypeError("Int".to_owned(), rhs.clone())),
         [lhs, Value::Int(_)] => Err(EvalError::TypeError("Int".to_owned(), lhs.clone())),
-        _ => Err(EvalError::IllegalArgumentLength(args.len())),
+        _ => Err(EvalError::ArgumentLength(args.len())),
     }
 }
 
@@ -102,6 +103,10 @@ impl Env {
                 self.set_var(&name.0, value);
                 Ok(Value::Null)
             }
+            Expr::Fun { params, expr } => Ok(Value::RefValue(RefValue::Fun {
+                params: params.clone(),
+                body: expr.clone(),
+            })),
         }
     }
 
@@ -121,6 +126,7 @@ impl Env {
                     .expect("Intrinsic should registered");
                 f(args)
             }
+            Value::RefValue(RefValue::Fun { params: _, body }) => self.eval_expr(body),
             _ => Err(EvalError::TypeError("Intrinsic".to_owned(), f.clone())),
         }
     }

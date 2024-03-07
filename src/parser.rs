@@ -75,7 +75,7 @@ where
 }
 
 fn unexpected_node(node: Node<'_>) -> ! {
-    panic!("Unexpected node: kind={}", node.kind())
+    panic!("Parse error: Unexpected node: kind={}", node.kind())
 }
 
 fn validate_node(node: Node<'_>) -> Result<(), Box<dyn Error>> {
@@ -129,6 +129,7 @@ fn to_expr(node: Node<'_>, src: &'_ str) -> Result<Expr, Box<dyn Error>> {
     match node.kind() {
         "expr_int" => Ok(Expr::Value(Value::Int(to_string(node, src)?.parse()?))),
         "expr_var" => Ok(Expr::Var(get_one(node, "ident", src, to_ident)?)),
+        "expr_paren" => get_one(node, "expr", src, to_expr),
         "expr_binop" => Ok(Expr::App {
             f: Box::new(Expr::Var(get_one(node, "op", src, to_ident)?)),
             args: vec![
@@ -143,6 +144,14 @@ fn to_expr(node: Node<'_>, src: &'_ str) -> Result<Expr, Box<dyn Error>> {
         "expr_let" => Ok(Expr::Let {
             name: get_one(node, "name", src, to_ident)?,
             expr: Box::new(get_one(node, "expr", src, to_expr)?),
+        }),
+        "expr_fun" => Ok(Expr::Fun {
+            params: get_many(node, "params", src, to_ident)?,
+            expr: Box::new(get_one(node, "expr", src, to_expr)?),
+        }),
+        "expr_app" => Ok(Expr::App {
+            f: Box::new(get_one(node, "expr", src, to_expr)?),
+            args: get_many(node, "args", src, to_expr)?,
         }),
         _ => unexpected_node(node),
     }
