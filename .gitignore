@@ -1,3 +1,5 @@
 /target
 node_modules
 tree-sitter-borlang/src
+tree-sitter-borlang/program_parser
+tree-sitter-borlang/expr_parser

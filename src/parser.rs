@@ -7,8 +7,8 @@ use crate::{
     parser_impl, Value,
 };
 
-pub fn parse(src: &str) -> Result<Program, Box<dyn Error>> {
-    let language = parser_impl::language();
+pub fn parse_program(src: &str) -> Result<Program, Box<dyn Error>> {
+    let language = parser_impl::language_program();
 
     let mut ts = tree_sitter::Parser::new();
     ts.set_language(&language)?;
@@ -18,6 +18,19 @@ pub fn parse(src: &str) -> Result<Program, Box<dyn Error>> {
         .expect("tree_sitter's parse() should return tree");
 
     to_program(tree.root_node(), src)
+}
+
+pub fn parse_expr(src: &str) -> Result<Expr, Box<dyn Error>> {
+    let language = parser_impl::language_expr();
+
+    let mut ts = tree_sitter::Parser::new();
+    ts.set_language(&language)?;
+
+    let tree = ts
+        .parse(src, None)
+        .expect("tree_sitter's parse() should return tree");
+
+    get_one(tree.root_node(), "expr", src, to_expr)
 }
 
 fn get_many<'a, 'src, T, F>(

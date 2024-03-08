@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use borlang::{parse, Env};
+use borlang::{parse_expr, Env};
 use rustyline::error::ReadlineError;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -18,10 +18,10 @@ fn repl_main() -> Result<i32, Box<dyn Error>> {
         match line {
             Ok(line) => {
                 rl.add_history_entry(&line)?;
-                let ast = parse(&line);
+                let ast = parse_expr(&line);
                 println!("{:?}", ast);
                 if let Ok(ast) = ast {
-                    let value = env.eval_program(&ast);
+                    let value = env.eval_expr(&ast);
                     dbg!(&value);
                 }
             }

@@ -8,7 +8,7 @@ mod parser_impl;
 pub use ast::Expr;
 pub use ast::Program;
 pub use evaluator::Env;
-pub use parser::parse;
+pub use parser::{parse_expr, parse_program};
 pub use value::Value;
 
 #[cfg(test)]
@@ -23,13 +23,11 @@ mod test {
         color_backtrace::install();
     }
 
-    fn eval(s: &str) -> Result<Value, EvalError> {
-        let src = format!("let actual = {};", s);
-        let tree = parse(&src).unwrap();
+    fn eval(src: &str) -> Result<Value, EvalError> {
+        let tree = parse_expr(src).unwrap();
 
         let mut env = Env::prelude();
-        env.eval_program(&tree)?;
-        env.get_var("actual")
+        env.eval_expr(&tree)
     }
 
     macro_rules! assert_eval_ok {
