@@ -21,7 +21,7 @@ fn repl_main() -> Result<i32, Box<dyn Error>> {
                 let ast = parse_expr(&line);
                 println!("{:?}", ast);
                 if let Ok(ast) = ast {
-                    let value = env.eval_expr(&ast);
+                    let value = env.eval_expr(&ast, &None);
                     dbg!(&value);
                 }
             }

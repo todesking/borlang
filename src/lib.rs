@@ -27,7 +27,7 @@ mod test {
         let tree = parse_expr(src).unwrap();
 
         let mut env = Env::prelude();
-        env.eval_expr(&tree)
+        env.eval_expr(&tree, &None)
     }
 
     macro_rules! assert_eval_ok {
@@ -102,7 +102,13 @@ mod test {
         assert_eval_ok!("{ let x = 10; (fn() => x)() }", 10);
         assert_eval_ok!("{ let x = 10; (fn(x) => x)(20) }", 20);
         assert_eval_ok!("(fn(x,y,) => x + y)(1,2)", 3);
-        assert_eval_ok!("(fn(,) => 42)()", 42);
-        assert_eval_err!("(fn() => 42)(123)", EvalError::ArgumentLength(1));
+        assert_eval_ok!("(fn() => 42)()", 42);
+        assert_eval_err!(
+            "(fn() => 42)(123)",
+            EvalError::ArgumentLength {
+                expected: 0,
+                actual: 1
+            }
+        );
     }
 }

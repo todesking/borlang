@@ -10,8 +10,13 @@ pub enum TopTerm {
     Let { name: Ident, expr: Expr },
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct Ident(pub String);
+impl<S: Into<String>> From<S> for Ident {
+    fn from(value: S) -> Self {
+        Ident(value.into())
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Expr {
