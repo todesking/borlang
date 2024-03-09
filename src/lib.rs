@@ -74,11 +74,11 @@ mod test {
 
     #[test]
     fn block() {
-        assert_eval_ok!("{}", Value::Null);
+        assert_eval_ok!("{}", Value::null());
         assert_eval_ok!("{1}", 1);
-        assert_eval_ok!("{1;}", Value::Null);
+        assert_eval_ok!("{1;}", Value::null());
         assert_eval_ok!("{1; 2}", 2);
-        assert_eval_ok!("{1; 2;}", Value::Null);
+        assert_eval_ok!("{1; 2;}", Value::null());
     }
 
     #[test]

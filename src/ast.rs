@@ -1,4 +1,4 @@
-use crate::value::Value;
+use crate::value::AtomValue;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Program {
@@ -15,7 +15,7 @@ pub struct Ident(pub String);
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Expr {
-    Value(Value),
+    AtomValue(AtomValue),
     Var(Ident),
     App {
         f: Box<Expr>,

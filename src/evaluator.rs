@@ -1,4 +1,5 @@
 use crate::ast::TopTerm;
+use crate::value::AtomValue;
 use crate::value::RefValue;
 use crate::Expr;
 use crate::Program;
@@ -32,9 +33,11 @@ pub struct Env {
 
 fn binop_int<F: Fn(i32, i32) -> EvalResult>(f: F) -> impl Fn(&[Value]) -> EvalResult {
     move |args| match args {
-        [Value::Int(lhs), Value::Int(rhs)] => f(*lhs, *rhs),
-        [Value::Int(_), rhs] => Err(EvalError::TypeError("Int".to_owned(), rhs.clone())),
-        [lhs, Value::Int(_)] => Err(EvalError::TypeError("Int".to_owned(), lhs.clone())),
+        [Value::Atom(AtomValue::Int(lhs)), Value::Atom(AtomValue::Int(rhs))] => f(*lhs, *rhs),
+        [Value::Atom(AtomValue::Int(_)), rhs] => {
+            Err(EvalError::TypeError("Int".to_owned(), rhs.clone()))
+        }
+        [lhs, _] => Err(EvalError::TypeError("Int".to_owned(), lhs.clone())),
         _ => Err(EvalError::ArgumentLength(args.len())),
     }
 }
@@ -45,9 +48,9 @@ impl Env {
     }
     pub fn prelude() -> Env {
         let mut env = Env::new();
-        env.register_instrinsic("+", binop_int(|lhs, rhs| Ok(Value::Int(lhs + rhs))));
-        env.register_instrinsic("-", binop_int(|lhs, rhs| Ok(Value::Int(lhs - rhs))));
-        env.register_instrinsic("*", binop_int(|lhs, rhs| Ok(Value::Int(lhs * rhs))));
+        env.register_instrinsic("+", binop_int(|lhs, rhs| Ok(Value::int(lhs + rhs))));
+        env.register_instrinsic("-", binop_int(|lhs, rhs| Ok(Value::int(lhs - rhs))));
+        env.register_instrinsic("*", binop_int(|lhs, rhs| Ok(Value::int(lhs * rhs))));
         env
     }
 
@@ -59,7 +62,7 @@ impl Env {
         let name = name.into();
         self.intrinsics.insert(name.clone(), Box::new(f));
         self.vars
-            .insert(name.clone(), Value::Intrinsic(name.clone()));
+            .insert(name.clone(), Value::intrinsic(name.clone()));
     }
     pub fn eval_program(&mut self, program: &Program) -> Result<(), EvalError> {
         for t in &program.top_terms {
@@ -78,7 +81,7 @@ impl Env {
     }
     pub fn eval_expr(&mut self, expr: &Expr) -> EvalResult {
         match expr {
-            Expr::Value(v) => Ok(v.clone()),
+            Expr::AtomValue(v) => Ok(v.clone().into()),
             Expr::Var(name) => self.get_var(&name.0),
             Expr::Block { terms, expr } => {
                 for e in terms {
@@ -87,7 +90,7 @@ impl Env {
                 if let Some(e) = expr {
                     self.eval_expr(e)
                 } else {
-                    Ok(Value::Null)
+                    Ok(Value::null())
                 }
             }
             Expr::App { f, args } => {
@@ -101,32 +104,28 @@ impl Env {
             Expr::Let { name, expr } => {
                 let value = self.eval_expr(expr)?;
                 self.set_var(&name.0, value);
-                Ok(Value::Null)
+                Ok(Value::null())
             }
-            Expr::Fun { params, expr } => Ok(Value::RefValue(RefValue::Fun {
-                params: params.clone(),
-                body: expr.clone(),
-            })),
+            Expr::Fun { params, expr } => Ok(Value::fun(params.clone(), expr.clone())),
         }
     }
 
     pub fn eval_to_int(&mut self, expr: &Expr) -> Result<i32, EvalError> {
-        match self.eval_expr(expr)? {
-            Value::Int(n) => Ok(n),
-            other => Err(EvalError::TypeError("Not int".into(), other)),
-        }
+        self.eval_expr(expr)?.try_into()
     }
 
     fn eval_app(&mut self, f: &Value, args: &[Value]) -> EvalResult {
         match f {
-            Value::Intrinsic(name) => {
+            Value::Atom(AtomValue::Intrinsic(name)) => {
                 let f = self
                     .intrinsics
                     .get(name)
                     .expect("Intrinsic should registered");
                 f(args)
             }
-            Value::RefValue(RefValue::Fun { params: _, body }) => self.eval_expr(body),
+            Value::Ref(f) => match &**f {
+                RefValue::Fun { params: _, body } => self.eval_expr(body),
+            },
             _ => Err(EvalError::TypeError("Intrinsic".to_owned(), f.clone())),
         }
     }
