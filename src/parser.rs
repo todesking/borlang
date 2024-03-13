@@ -169,6 +169,10 @@ fn to_expr(node: Node<'_>, src: &'_ str) -> Result<Expr, Box<dyn Error>> {
             f: Box::new(get_one(node, "expr", src, to_expr)?),
             args: get_many(node, "args", src, to_expr)?,
         }),
+        "expr_reassign" => Ok(Expr::Reassign {
+            name: get_one(node, "name", src, to_ident)?,
+            expr: Box::new(get_one(node, "expr", src, to_expr)?),
+        }),
         _ => unexpected_node(node),
     }
 }

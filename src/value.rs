@@ -60,41 +60,72 @@ impl From<AtomValue> for Value {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Finalize)]
-pub struct LocalEnv {
-    values: HashMap<Ident, Value>,
-    parent: Option<LocalEnvRef>,
-}
-
-unsafe impl Trace for LocalEnv {
+struct ValueMap(HashMap<Ident, Value>);
+unsafe impl Trace for ValueMap {
     gc::custom_trace!(this, {
-        mark(&this.parent);
-        for v in this.values.values() {
+        for (_, v) in this.0.iter() {
             mark(v);
         }
     });
 }
 
-pub type LocalEnvRef = Gc<GcCell<LocalEnv>>;
+#[derive(Debug, PartialEq, Eq, Clone, Finalize)]
+pub struct LocalEnv {
+    values: GcCell<ValueMap>,
+    parent: Option<LocalEnvRef>,
+}
+
+unsafe impl Trace for LocalEnv {
+    gc::custom_trace!(this, {
+        mark(&this.values);
+        mark(&this.parent);
+    });
+}
+
+pub type LocalEnvRef = Gc<LocalEnv>;
 impl LocalEnv {
     pub fn extend(parent: Option<LocalEnvRef>) -> LocalEnvRef {
         let e = LocalEnv {
-            values: HashMap::new(),
+            values: GcCell::new(ValueMap(HashMap::new())),
             parent,
         };
-        Gc::new(GcCell::new(e))
+        Gc::new(e)
     }
 
-    pub fn bind<S: Into<Ident>>(local_env: &LocalEnvRef, name: S, value: Value) {
-        (*local_env).borrow_mut().values.insert(name.into(), value);
+    pub fn bind(local_env: &LocalEnvRef, name: Ident, value: Value) -> Result<(), EvalError> {
+        let mut values = local_env.values.borrow_mut();
+        if values.0.contains_key(&name) {
+            return Err(EvalError::NameDefined(name));
+        }
+        values.0.insert(name, value);
+        Ok(())
     }
 
     pub fn get_var(local_env: &Option<LocalEnvRef>, name: &Ident) -> Option<Value> {
-        if let Some(local_env) = local_env {
-            let v = (*local_env).borrow_mut().values.get(name).cloned();
-            v.or_else(|| LocalEnv::get_var(&(*local_env).borrow().parent, name))
-        } else {
-            None
+        let Some(local_env) = local_env else {
+            return None;
+        };
+        let found = local_env.values.borrow().0.get(name).cloned();
+        if found.is_some() {
+            return found;
         }
+        Self::get_var(&local_env.parent, name)
+    }
+
+    pub fn reassign_if_exists(
+        local_env: &Option<LocalEnvRef>,
+        name: &Ident,
+        value: Value,
+    ) -> Result<(), Value> {
+        let Some(local_env) = local_env else {
+            return Err(value);
+        };
+        let mut values = local_env.values.borrow_mut();
+        if let Some(v) = values.0.get_mut(name) {
+            *v = value;
+            return Ok(());
+        }
+        Self::reassign_if_exists(&local_env.parent, name, value)
     }
 }
 

@@ -17,6 +17,7 @@ use std::fmt::Display;
 pub enum EvalError {
     TypeError(String, Value),
     NameNotFound(Ident),
+    NameDefined(Ident),
     ArgumentLength { expected: usize, actual: usize },
 }
 impl Display for EvalError {
@@ -81,7 +82,7 @@ impl Env {
         match top_term {
             TopTerm::Let { name, expr } => {
                 let value = self.eval_expr(expr, &None)?;
-                self.set_var(&name.0, value);
+                self.bind_global(name.clone(), value)?;
             }
         }
         Ok(())
@@ -111,7 +112,12 @@ impl Env {
             }
             Expr::Let { name, expr } => {
                 let value = self.eval_expr(expr, local_env)?;
-                self.bind_var(local_env, &name.0, value);
+                self.bind_var(local_env, name.clone(), value)?;
+                Ok(Value::null())
+            }
+            Expr::Reassign { name, expr } => {
+                let value = self.eval_expr(expr, local_env)?;
+                self.reassign_var(local_env, name, value)?;
                 Ok(Value::null())
             }
             Expr::Fun { params, expr } => {
@@ -143,7 +149,7 @@ impl Env {
                     }
                     let local_env = LocalEnv::extend(local_env.clone());
                     for (param, arg) in params.iter().zip(args.iter()) {
-                        LocalEnv::bind(&local_env, param.clone(), arg.clone());
+                        LocalEnv::bind(&local_env, param.clone(), arg.clone())?;
                     }
                     self.eval_expr(body, &Some(local_env))
                 }
@@ -152,21 +158,50 @@ impl Env {
         }
     }
 
-    pub fn set_var<S: Into<Ident>>(&mut self, name: S, value: Value) {
-        self.vars.insert(name.into(), value);
+    pub fn bind_global(&mut self, name: Ident, value: Value) -> Result<(), EvalError> {
+        if self.vars.contains_key(&name) {
+            return Err(EvalError::NameDefined(name));
+        }
+        self.vars.insert(name, value);
+        Ok(())
     }
 
-    pub fn bind_var<S: Into<Ident>>(
+    pub fn bind_var(
         &mut self,
         local_env: &Option<LocalEnvRef>,
-        name: S,
+        name: Ident,
         value: Value,
-    ) {
+    ) -> Result<(), EvalError> {
         if let Some(local_env) = local_env {
-            LocalEnv::bind(local_env, name, value);
+            LocalEnv::bind(local_env, name.clone(), value)?;
+            Ok(())
         } else {
-            self.vars.insert(name.into(), value);
+            if self.vars.contains_key(&name) {
+                return Err(EvalError::NameDefined(name));
+            }
+            self.vars.insert(name, value);
+            Ok(())
         }
+    }
+
+    fn reassign_var(
+        &mut self,
+        local_env: &Option<LocalEnvRef>,
+        name: &Ident,
+        value: Value,
+    ) -> Result<(), EvalError> {
+        match LocalEnv::reassign_if_exists(local_env, name, value) {
+            Ok(_) => Ok(()),
+            Err(value) => self.reassign_global(name, value),
+        }
+    }
+
+    pub fn reassign_global(&mut self, name: &Ident, value: Value) -> Result<(), EvalError> {
+        let Some(v) = self.vars.get_mut(name) else {
+            return Err(EvalError::NameNotFound(name.to_owned()));
+        };
+        *v = value;
+        Ok(())
     }
 
     pub fn get_var(&self, local_env: &Option<LocalEnvRef>, name: &Ident) -> EvalResult {

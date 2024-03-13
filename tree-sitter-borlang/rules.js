@@ -13,6 +13,7 @@ const common_rules = {
     $.expr_binop,
     $.expr_block,
     $.expr_let,
+    $.expr_reassign,
     $.expr_app,
     $.expr_fun,
   ),
@@ -40,6 +41,11 @@ const common_rules = {
     field('name', $.ident),
     '=',
     field('expr', $._expr))),
+  expr_reassign: $ => seq(
+    field("name", $.ident),
+    '=',
+    field('expr', $._expr),
+  ),
   expr_app: $ => prec(9, seq(
     field('expr', $._expr),
     '(',

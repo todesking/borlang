@@ -37,7 +37,18 @@ mod test {
     }
     macro_rules! assert_eval_err {
         ($actual:literal, $expected:expr) => {
-            assert_eq!(eval($actual).unwrap_err(), $expected.into());
+            assert_eval_err!([$actual], $expected);
+        };
+        ([$($es:literal),+], $expected:expr) => {
+            let mut env = Env::prelude();
+            assert_eval_err!(@env env, [$($es),+], $expected);
+        };
+        (@env $env:ident, [$e1:literal, $($es:literal),+], $expected:expr) => {
+            $env.eval_expr(&parse_expr($e1).unwrap(), &None).unwrap();
+            assert_eval_err!(@env $env, [$($es),+], $expected);
+        };
+        (@env $env:ident, [$e1:literal], $expected:expr) => {
+            assert_eq!($env.eval_expr(&parse_expr($e1).unwrap(), &None).unwrap_err(), $expected.into());
         };
     }
 
@@ -85,6 +96,30 @@ mod test {
     fn var() {
         assert_eval_err!("a", EvalError::NameNotFound("a".into()));
         assert_eval_ok!("{let a = 123; let b = 456; a}", 123);
+    }
+
+    #[test]
+    fn var_name_conflict() {
+        // local
+        assert_eval_err!(
+            "{let a = 1; let a = 2; a}",
+            EvalError::NameDefined("a".into())
+        );
+        // global
+        assert_eval_err!(
+            ["let a = 1", "let a = a"],
+            EvalError::NameDefined("a".into())
+        );
+    }
+
+    #[test]
+    fn var_reassign() {
+        assert_eval_ok!("{let a = 1; a = 2; a}", 2);
+        assert_eval_ok!("{let a = 1; {a = 2}; a}", 2);
+        assert_eval_ok!("{let a = 1; {let a = 999; a = 2}; a}", 1);
+
+        assert_eval_err!("{let a = 1; b = 2}", EvalError::NameNotFound("b".into()));
+        assert_eval_err!(["let a = 1", "b = 2"], EvalError::NameNotFound("b".into()));
     }
 
     #[test]

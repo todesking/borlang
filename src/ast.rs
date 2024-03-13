@@ -34,6 +34,10 @@ pub enum Expr {
         name: Ident,
         expr: Box<Expr>,
     },
+    Reassign {
+        name: Ident,
+        expr: Box<Expr>,
+    },
     Fun {
         params: Vec<Ident>,
         expr: Box<Expr>,
