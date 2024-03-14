@@ -8,6 +8,7 @@ const Prec = {
   eqeq: 1,
   add: 2,
   mul: 3,
+  prop: 9,
 
   block: 0,
   object: 1,
@@ -29,6 +30,7 @@ const common_rules = {
     $.expr_app,
     $.expr_fun,
     $.expr_if,
+    $.expr_prop,
   ),
   expr_int: $ => /[0-9]+/,
   expr_var: $ => field('ident', $.ident),
@@ -99,6 +101,11 @@ const common_rules = {
       field('el', $.expr_block),
     )),
   ),
+  expr_prop: $ => prec(Prec.prop, seq(
+    field('expr', $._expr),
+    '.',
+    field('name', $.ident),
+  )),
   ident: $ => /[A-Za-z_][a-z0-9_]*/,
   op_plus: $ => '+',
   op_minus: $ => '-',

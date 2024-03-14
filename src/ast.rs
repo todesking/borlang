@@ -52,4 +52,8 @@ pub enum Expr {
         params: Vec<Ident>,
         expr: Box<Expr>,
     },
+    Prop {
+        expr: Box<Expr>,
+        name: Ident,
+    },
 }

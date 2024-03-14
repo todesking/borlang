@@ -198,4 +198,10 @@ mod test {
             object_value! {foo: 3, bar: object_value!{}}
         );
     }
+    #[test]
+    fn obj_prop() {
+        assert_eval_err!("{}.foo", EvalError::PropertyNotFound("foo".into()));
+        assert_eval_ok!("{foo: 123}.foo", 123);
+        assert_eval_ok!("{foo: 123, bar: {baz: 999}}.bar.baz", 999);
+    }
 }

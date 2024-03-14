@@ -94,7 +94,7 @@ impl From<bool> for Value {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Finalize)]
-pub struct ValueMap(HashMap<Ident, Value>);
+pub struct ValueMap(pub HashMap<Ident, Value>);
 unsafe impl Trace for ValueMap {
     gc::custom_trace!(this, {
         for (_, v) in this.0.iter() {

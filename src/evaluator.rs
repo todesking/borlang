@@ -18,6 +18,7 @@ pub enum EvalError {
     TypeError(String, Value),
     NameNotFound(Ident),
     NameDefined(Ident),
+    PropertyNotFound(Ident),
     ArgumentLength { expected: usize, actual: usize },
 }
 impl Display for EvalError {
@@ -152,6 +153,21 @@ impl Env {
             }
             Expr::Fun { params, expr } => {
                 Ok(Value::fun(params.clone(), expr.clone(), local_env.clone()))
+            }
+            Expr::Prop { expr, name } => {
+                let value = self.eval_expr(expr, local_env)?;
+                match value {
+                    Value::Ref(ref ref_value) => match &**ref_value {
+                        RefValue::Object { values } => values
+                            .borrow()
+                            .0
+                            .get(name)
+                            .cloned()
+                            .ok_or_else(|| EvalError::PropertyNotFound(name.clone())),
+                        _ => Err(EvalError::TypeError("Object".to_owned(), value.clone())),
+                    },
+                    _ => Err(EvalError::TypeError("Object".to_owned(), value.clone())),
+                }
             }
         }
     }
