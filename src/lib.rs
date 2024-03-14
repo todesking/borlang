@@ -23,32 +23,30 @@ mod test {
         color_backtrace::install();
     }
 
-    fn eval(src: &str) -> Result<Value, EvalError> {
-        let tree = parse_expr(src).unwrap();
-
-        let mut env = Env::prelude();
-        env.eval_expr(&tree, &None)
-    }
-
     macro_rules! assert_eval_ok {
-        ($actual:literal, $expected:expr) => {
-            assert_eq!(eval($actual).unwrap(), $expected.into());
+        ($expr:tt, $expected:expr) => {
+            assert_eval_impl!($expr, $expected, unwrap);
         };
     }
     macro_rules! assert_eval_err {
-        ($actual:literal, $expected:expr) => {
-            assert_eval_err!([$actual], $expected);
+        ($expr:tt, $expected:expr) => {
+            assert_eval_impl!($expr, $expected, unwrap_err);
         };
-        ([$($es:literal),+], $expected:expr) => {
+    }
+    macro_rules! assert_eval_impl {
+        ($actual:literal, $expected:expr, $unwrap:ident) => {
+            assert_eval_impl!([$actual], $expected, $unwrap);
+        };
+        ([$($es:literal),+], $expected:expr, $unwrap:ident) => {
             let mut env = Env::prelude();
-            assert_eval_err!(@env env, [$($es),+], $expected);
+            assert_eval_impl!(@env env, [$($es),+], $expected, $unwrap);
         };
-        (@env $env:ident, [$e1:literal, $($es:literal),+], $expected:expr) => {
+        (@env $env:ident, [$e1:literal, $($es:literal),+], $expected:expr, $unwrap:ident) => {
             $env.eval_expr(&parse_expr($e1).unwrap(), &None).unwrap();
-            assert_eval_err!(@env $env, [$($es),+], $expected);
+            assert_eval_impl!(@env $env, [$($es),+], $expected, $unwrap);
         };
-        (@env $env:ident, [$e1:literal], $expected:expr) => {
-            assert_eq!($env.eval_expr(&parse_expr($e1).unwrap(), &None).unwrap_err(), $expected.into());
+        (@env $env:ident, [$e1:literal], $expected:expr, $unwrap:ident) => {
+            assert_eq!($env.eval_expr(&parse_expr($e1).unwrap(), &None).$unwrap(), $expected.into());
         };
     }
 
@@ -168,5 +166,8 @@ mod test {
     #[test]
     fn if_else() {
         assert_eval_ok!("if 1 == 2 { 1 } else { 2 }", 2);
+        assert_eval_ok!("if 1 != 2 { 1 } else { 2 }", 1);
+        assert_eval_ok!(["let a = 1", "if true { a = 1 } else { a = 2 }", "a"], 1);
+        assert_eval_ok!(["let a = 1", "if false { a = 1 } else { a = 2 }", "a"], 2);
     }
 }
