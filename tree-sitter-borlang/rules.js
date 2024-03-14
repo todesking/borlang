@@ -8,6 +8,9 @@ const Prec = {
   eqeq: 1,
   add: 2,
   mul: 3,
+
+  block: 0,
+  object: 1,
 }
 
 /**
@@ -17,6 +20,7 @@ const common_rules = {
   _expr: $ => choice(
     $.expr_int,
     $.expr_var,
+    $.expr_object,
     $.expr_paren,
     $.expr_binop,
     $.expr_block,
@@ -44,12 +48,24 @@ const common_rules = {
       field("op", choice($.op_plus, $.op_minus)),
       field("rhs", $._expr))),
   ),
-  expr_block: $ => seq(
+  expr_object: $ => prec(Prec.object, seq(
+    '{',
+    repsep(
+      seq(
+        field('name', $.ident),
+        ':',
+        field('expr', $._expr),
+      ),
+      ',',
+    ),
+    '}',
+  )),
+  expr_block: $ => prec(Prec.block, seq(
     '{',
     repeat(seq(field('terms', $._expr), ';')),
     field('expr', optional($._expr)),
     '}',
-  ),
+  )),
   expr_let: $ => prec(Prec.let, seq(
     'let',
     field('name', $.ident),

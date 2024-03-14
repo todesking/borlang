@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{collections::HashMap, error::Error};
 
 use tree_sitter::Node;
 
@@ -153,6 +153,16 @@ fn to_expr(node: Node<'_>, src: &'_ str) -> Result<Expr, Box<dyn Error>> {
                 get_one(node, "rhs", src, to_expr)?,
             ],
         }),
+        "expr_object" => {
+            let names = get_many(node, "name", src, to_ident)?;
+            let exprs = get_many(node, "expr", src, to_expr)?;
+            assert!(names.len() == exprs.len());
+            let mut dict = HashMap::new();
+            for (name, expr) in names.into_iter().zip(exprs) {
+                dict.insert(name, expr);
+            }
+            Ok(Expr::Object { exprs: dict })
+        }
         "expr_block" => Ok(Expr::Block {
             terms: get_many(node, "terms", src, to_expr)?,
             expr: get_option(node, "expr", src, to_expr)?.map(Box::new),

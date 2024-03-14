@@ -100,6 +100,14 @@ impl Env {
     pub fn eval_expr(&mut self, expr: &Expr, local_env: &Option<LocalEnvRef>) -> EvalResult {
         match expr {
             Expr::AtomValue(v) => Ok(v.clone().into()),
+            Expr::Object { exprs } => {
+                let mut values = HashMap::new();
+                for (name, expr) in exprs.iter() {
+                    let value = self.eval_expr(expr, local_env)?;
+                    values.insert(name.clone(), value);
+                }
+                Ok(Value::object(values))
+            }
             Expr::Var(name) => self.get_var(local_env, name),
             Expr::Block { terms, expr } => {
                 let local_env = Some(LocalEnv::extend(local_env.clone()));
@@ -157,7 +165,7 @@ impl Env {
                     .expect("Intrinsic should registered");
                 f(args)
             }
-            Value::Ref(f) => match &**f {
+            Value::Ref(v) => match &**v {
                 RefValue::Fun {
                     params,
                     body,
@@ -175,6 +183,7 @@ impl Env {
                     }
                     self.eval_expr(body, &Some(local_env))
                 }
+                RefValue::Object { .. } => Err(EvalError::TypeError("Fun".into(), f.clone())),
             },
             _ => Err(EvalError::TypeError("Intrinsic".to_owned(), f.clone())),
         }

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::value::AtomValue;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -20,6 +22,9 @@ impl<S: Into<String>> From<S> for Ident {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Expr {
+    Object {
+        exprs: HashMap<Ident, Expr>,
+    },
     AtomValue(AtomValue),
     Var(Ident),
     App {

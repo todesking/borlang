@@ -11,6 +11,25 @@ pub use evaluator::Env;
 pub use parser::{parse_expr, parse_program};
 pub use value::Value;
 
+#[macro_export]
+macro_rules! object_value {
+    ($($name:ident : $value:expr),*) => {{
+        #[allow(unused_mut)]
+        let mut obj: ::std::collections::HashMap<$crate::ast::Ident, $crate::value::Value> = ::std::collections::HashMap::new();
+        object_value!(@impl obj, $($name : $value),*)
+    }};
+    (@impl $obj:ident, $name:ident : $value:expr, $($rest_name:ident : $rest_value:expr),*) => {{
+        $obj.insert($crate::ast::Ident(stringify!($name).to_owned()), $value.into());
+        object_value!(@impl $obj, $($rest_name : $rest_value),*)
+    }};
+    (@impl $obj:ident, $name:ident : $value:expr) => {
+        object_value!(@impl $obj, $name : $value,)
+    };
+    (@impl $obj:ident,) => {
+        $crate::value::Value::object($obj)
+    };
+}
+
 #[cfg(test)]
 mod test {
     use crate::evaluator::EvalError;
@@ -34,9 +53,9 @@ mod test {
         };
     }
     macro_rules! assert_eval_impl {
-        ($actual:literal, $expected:expr, $unwrap:ident) => {
+        ($actual:literal, $expected:expr, $unwrap:ident) => {{
             assert_eval_impl!([$actual], $expected, $unwrap);
-        };
+        }};
         ([$($es:literal),+], $expected:expr, $unwrap:ident) => {
             let mut env = Env::prelude();
             assert_eval_impl!(@env env, [$($es),+], $expected, $unwrap);
@@ -83,7 +102,6 @@ mod test {
 
     #[test]
     fn block() {
-        assert_eval_ok!("{}", Value::null());
         assert_eval_ok!("{1}", 1);
         assert_eval_ok!("{1;}", Value::null());
         assert_eval_ok!("{1; 2}", 2);
@@ -169,5 +187,15 @@ mod test {
         assert_eval_ok!("if 1 != 2 { 1 } else { 2 }", 1);
         assert_eval_ok!(["let a = 1", "if true { a = 1 } else { a = 2 }", "a"], 1);
         assert_eval_ok!(["let a = 1", "if false { a = 1 } else { a = 2 }", "a"], 2);
+    }
+
+    #[test]
+    fn obj() {
+        assert_eval_ok!("{}", object_value! {});
+        assert_eval_ok!("{foo: 1, bar: true}", object_value! {foo: 1, bar: true});
+        assert_eval_ok!(
+            "{foo: 1 + 2, bar: {}}",
+            object_value! {foo: 3, bar: object_value!{}}
+        );
     }
 }

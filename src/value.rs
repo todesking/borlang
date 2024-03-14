@@ -38,6 +38,15 @@ impl Value {
         }
         .into()
     }
+    pub fn object(values: HashMap<Ident, Value>) -> Value {
+        RefValue::Object {
+            values: GcCell::new(ValueMap(values)),
+        }
+        .into()
+    }
+    pub fn empty_object() -> Value {
+        Self::object(HashMap::new())
+    }
 }
 impl TryFrom<&Value> for i32 {
     type Error = EvalError;
@@ -85,7 +94,7 @@ impl From<bool> for Value {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Finalize)]
-struct ValueMap(HashMap<Ident, Value>);
+pub struct ValueMap(HashMap<Ident, Value>);
 unsafe impl Trace for ValueMap {
     gc::custom_trace!(this, {
         for (_, v) in this.0.iter() {
@@ -161,6 +170,9 @@ pub enum RefValue {
         body: Box<Expr>,
         local_env: Option<LocalEnvRef>,
     },
+    Object {
+        values: GcCell<ValueMap>,
+    },
 }
 impl From<RefValue> for Value {
     fn from(value: RefValue) -> Self {
@@ -177,6 +189,9 @@ unsafe impl Trace for RefValue {
                 local_env,
             } => {
                 mark(local_env);
+            }
+            RefValue::Object { values } => {
+                mark(values);
             }
         }
     });
