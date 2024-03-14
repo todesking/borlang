@@ -36,18 +36,24 @@ pub struct Env {
     intrinsics: HashMap<Ident, Box<IntrinsicFn>>,
 }
 
-fn binop_int<F: Fn(i32, i32) -> EvalResult>(f: F) -> impl Fn(&[Value]) -> EvalResult {
-    move |args| match args {
-        [Value::Atom(AtomValue::Int(lhs)), Value::Atom(AtomValue::Int(rhs))] => f(*lhs, *rhs),
-        [Value::Atom(AtomValue::Int(_)), rhs] => {
-            Err(EvalError::TypeError("Int".to_owned(), rhs.clone()))
-        }
-        [lhs, _] => Err(EvalError::TypeError("Int".to_owned(), lhs.clone())),
+fn binop_any<F: Fn(&Value, &Value) -> EvalResult>(f: F) -> impl Fn(&[Value]) -> EvalResult {
+    move |args: &[Value]| match args {
+        [lhs, rhs] => f(lhs, rhs),
         _ => Err(EvalError::ArgumentLength {
             expected: 2,
             actual: args.len(),
         }),
     }
+}
+
+fn binop<
+    L: for<'a> TryFrom<&'a Value, Error = EvalError>,
+    R: for<'a> TryFrom<&'a Value, Error = EvalError>,
+    F: Fn(L, R) -> EvalResult,
+>(
+    f: F,
+) -> impl Fn(&[Value]) -> EvalResult {
+    binop_any(move |lhs, rhs| f(lhs.try_into()?, rhs.try_into()?))
 }
 
 impl Env {
@@ -56,9 +62,13 @@ impl Env {
     }
     pub fn prelude() -> Env {
         let mut env = Env::new();
-        env.register_instrinsic("+", binop_int(|lhs, rhs| Ok(Value::int(lhs + rhs))));
-        env.register_instrinsic("-", binop_int(|lhs, rhs| Ok(Value::int(lhs - rhs))));
-        env.register_instrinsic("*", binop_int(|lhs, rhs| Ok(Value::int(lhs * rhs))));
+        env.register_instrinsic("+", binop(|lhs: i32, rhs: i32| Ok(Value::int(lhs + rhs))));
+        env.register_instrinsic("-", binop(|lhs: i32, rhs: i32| Ok(Value::int(lhs - rhs))));
+        env.register_instrinsic("*", binop(|lhs: i32, rhs: i32| Ok(Value::int(lhs * rhs))));
+        env.register_instrinsic("==", binop_any(|lhs, rhs| Ok((lhs == rhs).into())));
+        env.register_instrinsic("!=", binop_any(|lhs, rhs| Ok((lhs != rhs).into())));
+        env.bind_global("true", true).unwrap();
+        env.bind_global("false", false).unwrap();
         env
     }
 
@@ -120,6 +130,18 @@ impl Env {
                 self.reassign_var(local_env, name, value)?;
                 Ok(Value::null())
             }
+            Expr::If { cond, th, el } => {
+                let cond = self.eval_expr(cond, local_env)?;
+                let cond = (&cond).try_into()?;
+                let value = if cond {
+                    self.eval_expr(th, local_env)?
+                } else {
+                    el.as_ref()
+                        .map(|el| self.eval_expr(el, local_env))
+                        .unwrap_or_else(|| Ok(Value::null()))?
+                };
+                Ok(value)
+            }
             Expr::Fun { params, expr } => {
                 Ok(Value::fun(params.clone(), expr.clone(), local_env.clone()))
             }
@@ -158,11 +180,16 @@ impl Env {
         }
     }
 
-    pub fn bind_global(&mut self, name: Ident, value: Value) -> Result<(), EvalError> {
+    pub fn bind_global<I: Into<Ident>, V: Into<Value>>(
+        &mut self,
+        name: I,
+        value: V,
+    ) -> Result<(), EvalError> {
+        let name = name.into();
         if self.vars.contains_key(&name) {
             return Err(EvalError::NameDefined(name));
         }
-        self.vars.insert(name, value);
+        self.vars.insert(name, value.into());
         Ok(())
     }
 

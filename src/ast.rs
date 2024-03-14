@@ -38,6 +38,11 @@ pub enum Expr {
         name: Ident,
         expr: Box<Expr>,
     },
+    If {
+        cond: Box<Expr>,
+        th: Box<Expr>,
+        el: Option<Box<Expr>>,
+    },
     Fun {
         params: Vec<Ident>,
         expr: Box<Expr>,

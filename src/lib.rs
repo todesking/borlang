@@ -146,4 +146,27 @@ mod test {
             }
         );
     }
+
+    #[test]
+    fn bool() {
+        assert_eval_ok!("true", true);
+        assert_eval_ok!("false", false);
+    }
+
+    #[test]
+    fn op_eq() {
+        assert_eval_ok!("1 == 1", true);
+        assert_eval_ok!("1 == 2", false);
+        assert_eval_ok!("1 != 2", true);
+        assert_eval_ok!("1 != 1", false);
+        assert_eval_ok!("1 + 2 * 3 == 3 + 4", true);
+        assert_eval_ok!("1 + 2 * 3 != 3 + 4 - 1", true);
+        assert_eval_ok!("1 == 1 == 1", false);
+        assert_eval_ok!("1 == 1 == true", true);
+    }
+
+    #[test]
+    fn if_else() {
+        assert_eval_ok!("if 1 == 2 { 1 } else { 2 }", 2);
+    }
 }

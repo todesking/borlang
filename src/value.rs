@@ -19,7 +19,10 @@ unsafe impl Trace for Value {
 }
 impl Value {
     pub fn int(v: i32) -> Value {
-        AtomValue::Int(v).into()
+        v.into()
+    }
+    pub fn bool(v: bool) -> Value {
+        v.into()
     }
     pub fn intrinsic(id: Ident) -> Value {
         AtomValue::Intrinsic(id).into()
@@ -36,13 +39,23 @@ impl Value {
         .into()
     }
 }
-impl TryInto<i32> for Value {
+impl TryFrom<&Value> for i32 {
     type Error = EvalError;
 
-    fn try_into(self) -> Result<i32, Self::Error> {
-        match self {
-            Value::Atom(AtomValue::Int(v)) => Ok(v),
-            _ => Err(EvalError::TypeError("Int".into(), self.clone())),
+    fn try_from(value: &Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::Atom(AtomValue::Int(v)) => Ok(*v),
+            _ => Err(EvalError::TypeError("Int".into(), value.clone())),
+        }
+    }
+}
+impl TryFrom<&Value> for bool {
+    type Error = EvalError;
+
+    fn try_from(value: &Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::Atom(AtomValue::Bool(v)) => Ok(*v),
+            _ => Err(EvalError::TypeError("Bool".into(), value.clone())),
         }
     }
 }
@@ -52,10 +65,22 @@ pub enum AtomValue {
     Null,
     Int(i32),
     Intrinsic(Ident),
+    Bool(bool),
 }
 impl From<AtomValue> for Value {
     fn from(value: AtomValue) -> Self {
         Value::Atom(value)
+    }
+}
+
+impl From<i32> for Value {
+    fn from(value: i32) -> Self {
+        Value::Atom(AtomValue::Int(value))
+    }
+}
+impl From<bool> for Value {
+    fn from(value: bool) -> Self {
+        Value::Atom(AtomValue::Bool(value))
     }
 }
 
@@ -155,10 +180,4 @@ unsafe impl Trace for RefValue {
             }
         }
     });
-}
-
-impl From<i32> for Value {
-    fn from(value: i32) -> Self {
-        Value::Atom(AtomValue::Int(value))
-    }
 }

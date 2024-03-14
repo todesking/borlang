@@ -173,6 +173,11 @@ fn to_expr(node: Node<'_>, src: &'_ str) -> Result<Expr, Box<dyn Error>> {
             name: get_one(node, "name", src, to_ident)?,
             expr: Box::new(get_one(node, "expr", src, to_expr)?),
         }),
+        "expr_if" => Ok(Expr::If {
+            cond: Box::new(get_one(node, "cond", src, to_expr)?),
+            th: Box::new(get_one(node, "th", src, to_expr)?),
+            el: get_option(node, "el", src, to_expr)?.map(Box::new),
+        }),
         _ => unexpected_node(node),
     }
 }

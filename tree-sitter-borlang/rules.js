@@ -2,6 +2,14 @@
 
 const {repsep} = require('./util')
 
+const Prec = {
+  reassign: 0,
+  let: 0,
+  eqeq: 1,
+  add: 2,
+  mul: 3,
+}
+
 /**
  * @type {Grammar<string>['rules']}
  */
@@ -16,16 +24,22 @@ const common_rules = {
     $.expr_reassign,
     $.expr_app,
     $.expr_fun,
+    $.expr_if,
   ),
   expr_int: $ => /[0-9]+/,
   expr_var: $ => field('ident', $.ident),
   expr_paren: $ => seq('(', field('expr', $._expr), ')'),
   expr_binop: $ => choice(
-    prec.left(2, seq(
+    prec.left(Prec.eqeq, seq(
+      field('lhs', $._expr),
+      field('op', choice($.op_eqeq, $.op_neq)),
+      field('rhs', $._expr),
+    )),
+    prec.left(Prec.mul, seq(
       field("lhs", $._expr),
       field("op", $.op_mul),
       field("rhs", $._expr))),
-    prec.left(1, seq(
+    prec.left(Prec.add, seq(
       field("lhs", $._expr),
       field("op", choice($.op_plus, $.op_minus)),
       field("rhs", $._expr))),
@@ -36,16 +50,16 @@ const common_rules = {
     field('expr', optional($._expr)),
     '}',
   ),
-  expr_let: $ => prec(0, seq(
+  expr_let: $ => prec(Prec.let, seq(
     'let',
     field('name', $.ident),
     '=',
     field('expr', $._expr))),
-  expr_reassign: $ => seq(
+  expr_reassign: $ => prec.left(Prec.reassign, seq(
     field("name", $.ident),
     '=',
     field('expr', $._expr),
-  ),
+  )),
   expr_app: $ => prec(9, seq(
     field('expr', $._expr),
     '(',
@@ -60,10 +74,21 @@ const common_rules = {
     '=>',
     field('expr', $._expr),
   ),
+  expr_if: $ => seq(
+    'if',
+    field('cond', $._expr),
+    field('th', $.expr_block),
+    optional(seq(
+      'else',
+      field('el', $.expr_block),
+    )),
+  ),
   ident: $ => /[A-Za-z_][a-z0-9_]*/,
   op_plus: $ => '+',
   op_minus: $ => '-',
   op_mul: $ => '*',
+  op_eqeq: $ => '==',
+  op_neq: $ => '!=',
 }
 
 /**
