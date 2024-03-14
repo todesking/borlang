@@ -167,6 +167,7 @@ fn to_expr(node: Node<'_>, src: &'_ str) -> Result<Expr, Box<dyn Error>> {
             terms: get_many(node, "terms", src, to_expr)?,
             expr: get_option(node, "expr", src, to_expr)?.map(Box::new),
         }),
+        "expr_array" => Ok(Expr::Array(get_many(node, "expr", src, to_expr)?)),
         "expr_let" => Ok(Expr::Let {
             name: get_one(node, "name", src, to_ident)?,
             expr: Box::new(get_one(node, "expr", src, to_expr)?),

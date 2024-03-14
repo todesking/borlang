@@ -25,6 +25,7 @@ pub enum Expr {
     Object {
         exprs: HashMap<Ident, Expr>,
     },
+    Array(Vec<Expr>),
     AtomValue(AtomValue),
     Var(Ident),
     App {

@@ -47,6 +47,9 @@ impl Value {
     pub fn empty_object() -> Value {
         Self::object(HashMap::new())
     }
+    pub fn array(v: Vec<Value>) -> Value {
+        RefValue::Array(GcCell::new(v)).into()
+    }
 }
 impl TryFrom<&Value> for i32 {
     type Error = EvalError;
@@ -90,6 +93,11 @@ impl From<i32> for Value {
 impl From<bool> for Value {
     fn from(value: bool) -> Self {
         Value::Atom(AtomValue::Bool(value))
+    }
+}
+impl<T: Into<Value>> From<Vec<T>> for Value {
+    fn from(value: Vec<T>) -> Self {
+        Value::array(value.into_iter().map(|v| v.into()).collect())
     }
 }
 
@@ -173,6 +181,7 @@ pub enum RefValue {
     Object {
         values: GcCell<ValueMap>,
     },
+    Array(GcCell<Vec<Value>>),
 }
 impl From<RefValue> for Value {
     fn from(value: RefValue) -> Self {
@@ -192,6 +201,9 @@ unsafe impl Trace for RefValue {
             }
             RefValue::Object { values } => {
                 mark(values);
+            }
+            RefValue::Array(vs) => {
+                mark(vs);
             }
         }
     });

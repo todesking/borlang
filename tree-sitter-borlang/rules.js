@@ -23,6 +23,7 @@ const common_rules = {
     $.expr_var,
     $.expr_object,
     $.expr_paren,
+    $.expr_array,
     $.expr_binop,
     $.expr_block,
     $.expr_let,
@@ -68,6 +69,11 @@ const common_rules = {
     field('expr', optional($._expr)),
     '}',
   )),
+  expr_array: $ => seq(
+    '[',
+    repsep(field('expr', $._expr), ','),
+    ']',
+  ),
   expr_let: $ => prec(Prec.let, seq(
     'let',
     field('name', $.ident),

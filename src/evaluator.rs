@@ -109,6 +109,12 @@ impl Env {
                 }
                 Ok(Value::object(values))
             }
+            Expr::Array(items) => Ok(Value::array(
+                items
+                    .iter()
+                    .map(|expr| self.eval_expr(expr, local_env))
+                    .collect::<Result<Vec<_>, _>>()?,
+            )),
             Expr::Var(name) => self.get_var(local_env, name),
             Expr::Block { terms, expr } => {
                 let local_env = Some(LocalEnv::extend(local_env.clone()));
@@ -199,7 +205,7 @@ impl Env {
                     }
                     self.eval_expr(body, &Some(local_env))
                 }
-                RefValue::Object { .. } => Err(EvalError::TypeError("Fun".into(), f.clone())),
+                _ => Err(EvalError::TypeError("Fun".into(), f.clone())),
             },
             _ => Err(EvalError::TypeError("Intrinsic".to_owned(), f.clone())),
         }

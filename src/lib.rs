@@ -30,6 +30,25 @@ macro_rules! object_value {
     };
 }
 
+#[macro_export]
+macro_rules! array_value {
+    ($($values:expr),*) => {{
+        #[allow(unused_mut)]
+        let mut obj: ::std::vec::Vec<$crate::value::Value> = ::std::vec::Vec::new();
+        array_value!(@impl obj, $($values),*)
+    }};
+    (@impl $obj:ident, $value:expr, $($values:expr),*) => {{
+        $obj.push($value.into());
+        array_value!(@impl $obj, $($values),*)
+    }};
+    (@impl $obj:ident, $value:expr) => {
+        array_value!(@impl $obj, $value,)
+    };
+    (@impl $obj:ident,) => {
+        $crate::value::Value::array($obj)
+    };
+}
+
 #[cfg(test)]
 mod test {
     use crate::evaluator::EvalError;
@@ -203,5 +222,14 @@ mod test {
         assert_eval_err!("{}.foo", EvalError::PropertyNotFound("foo".into()));
         assert_eval_ok!("{foo: 123}.foo", 123);
         assert_eval_ok!("{foo: 123, bar: {baz: 999}}.bar.baz", 999);
+    }
+
+    #[test]
+    fn array() {
+        assert_eval_ok!("[]", array_value![]);
+        assert_eval_ok!(
+            "[1, {}, []]",
+            array_value![1, object_value! {}, array_value![]]
+        );
     }
 }
