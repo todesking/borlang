@@ -19,10 +19,18 @@ fn repl_main() -> Result<i32, Box<dyn Error>> {
             Ok(line) => {
                 rl.add_history_entry(&line)?;
                 let ast = parse_expr(&line);
-                println!("{:?}", ast);
-                if let Ok(ast) = ast {
-                    let value = env.eval_expr(&ast, &None);
-                    dbg!(&value);
+                match ast {
+                    Err(err) => {
+                        println!("Parse error: {:?}", err);
+                    }
+                    Ok(ast) => match env.eval_expr(&ast, &None) {
+                        Ok(value) => {
+                            println!("=> {}", value);
+                        }
+                        Err(err) => {
+                            println!("Error: {:?}", err);
+                        }
+                    },
                 }
             }
             Err(ReadlineError::Eof) => {

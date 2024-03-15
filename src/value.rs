@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use gc::{Finalize, Gc, GcCell, Trace};
 
@@ -38,19 +38,58 @@ impl Value {
         }
         .into()
     }
-    pub fn object(values: HashMap<Ident, Value>) -> Value {
-        RefValue::Object {
-            values: GcCell::new(ValueMap(values)),
-        }
-        .into()
-    }
-    pub fn empty_object() -> Value {
-        Self::object(HashMap::new())
+    pub fn object(obj: ObjectValue) -> Value {
+        RefValue::Object(GcCell::new(obj)).into()
     }
     pub fn array(v: Vec<Value>) -> Value {
         RefValue::Array(GcCell::new(v)).into()
     }
 }
+
+impl Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Ref(ref_value) => match &**ref_value {
+                RefValue::Array(values) => {
+                    f.write_str("[")?;
+                    let values = values.borrow();
+                    let mut iter = values.iter();
+                    if let Some(v) = iter.next() {
+                        v.fmt(f)?;
+                        for v in iter {
+                            f.write_str(", ")?;
+                            v.fmt(f)?;
+                        }
+                    }
+                    f.write_str("]")?;
+                }
+                RefValue::Object(obj) => {
+                    obj.borrow().fmt(f)?;
+                }
+                RefValue::Fun { .. } => {
+                    f.write_str("#fun")?;
+                }
+            },
+            Value::Atom(atom_value) => match atom_value {
+                AtomValue::Bool(v) => {
+                    v.fmt(f)?;
+                }
+                AtomValue::Null => {
+                    f.write_str("null")?;
+                }
+                AtomValue::Int(v) => {
+                    v.fmt(f)?;
+                }
+                AtomValue::Intrinsic(name) => {
+                    f.write_str("#fun:")?;
+                    name.fmt(f)?;
+                }
+            },
+        }
+        Ok(())
+    }
+}
+
 impl TryFrom<&Value> for i32 {
     type Error = EvalError;
 
@@ -178,9 +217,7 @@ pub enum RefValue {
         body: Box<Expr>,
         local_env: Option<LocalEnvRef>,
     },
-    Object {
-        values: GcCell<ValueMap>,
-    },
+    Object(GcCell<ObjectValue>),
     Array(GcCell<Vec<Value>>),
 }
 impl From<RefValue> for Value {
@@ -199,12 +236,128 @@ unsafe impl Trace for RefValue {
             } => {
                 mark(local_env);
             }
-            RefValue::Object { values } => {
-                mark(values);
+            RefValue::Object(o) => {
+                mark(o);
             }
             RefValue::Array(vs) => {
                 mark(vs);
             }
         }
     });
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Finalize)]
+pub struct ObjectValue {
+    names: Vec<Ident>,
+    values: HashMap<Ident, Value>,
+}
+impl Default for ObjectValue {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ObjectValue {
+    pub fn new() -> ObjectValue {
+        ObjectValue {
+            names: Vec::new(),
+            values: HashMap::new(),
+        }
+    }
+    pub fn insert(&mut self, name: Ident, value: Value) {
+        let old = self.values.insert(name.clone(), value);
+        if old.is_none() {
+            self.names.push(name);
+        }
+    }
+    pub fn get(&self, name: &Ident) -> Option<&Value> {
+        self.values.get(name)
+    }
+}
+unsafe impl Trace for ObjectValue {
+    gc::custom_trace!(this, {
+        for v in this.values.values() {
+            mark(v);
+        }
+    });
+}
+impl Display for ObjectValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("{")?;
+        let mut iter = self.names.iter();
+        if let Some(name) = iter.next() {
+            name.fmt(f)?;
+            f.write_str(": ")?;
+            self.values.get(name).unwrap().fmt(f)?;
+            for name in iter {
+                f.write_str(", ")?;
+                name.fmt(f)?;
+                f.write_str(": ")?;
+                self.values.get(name).unwrap().fmt(f)?;
+            }
+        }
+        f.write_str("}")?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{array_value, object_value};
+
+    use super::*;
+
+    macro_rules! assert_display {
+        ($expr:expr, $expected:literal) => {
+            assert_eq!(&format!("{}", Into::<Value>::into($expr)), $expected);
+        };
+    }
+
+    #[test]
+    fn display_int() {
+        assert_display!(1, "1");
+    }
+
+    #[test]
+    fn dislpay_array() {
+        assert_display!(array_value![], "[]");
+        assert_display!(array_value![1, 2, 3], "[1, 2, 3]");
+    }
+
+    #[test]
+    fn display_object() {
+        assert_display!(object_value! {}, "{}");
+        assert_display!(
+            object_value! {foo: 1, bar: object_value!{}},
+            "{foo: 1, bar: {}}"
+        );
+    }
+
+    #[test]
+    fn display_fun() {
+        assert_display!(
+            Into::<Value>::into(RefValue::Fun {
+                params: vec![],
+                body: Box::new(Expr::Var("".into())),
+                local_env: None
+            }),
+            "#fun"
+        );
+    }
+
+    #[test]
+    fn display_null() {
+        assert_display!(Value::null(), "null");
+    }
+
+    #[test]
+    fn display_bool() {
+        assert_display!(true, "true");
+        assert_display!(false, "false");
+    }
+
+    #[test]
+    fn display_intrinsic() {
+        assert_display!(AtomValue::Intrinsic("foo".into()), "#fun:foo");
+    }
 }

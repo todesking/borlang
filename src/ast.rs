@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::fmt::Display;
 
 use crate::value::AtomValue;
 
@@ -12,18 +12,23 @@ pub enum TopTerm {
     Let { name: Ident, expr: Expr },
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord)]
 pub struct Ident(pub String);
 impl<S: Into<String>> From<S> for Ident {
     fn from(value: S) -> Self {
         Ident(value.into())
     }
 }
+impl Display for Ident {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Expr {
     Object {
-        exprs: HashMap<Ident, Expr>,
+        exprs: Vec<(Ident, Expr)>,
     },
     Array(Vec<Expr>),
     AtomValue(AtomValue),

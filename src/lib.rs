@@ -15,7 +15,7 @@ pub use value::Value;
 macro_rules! object_value {
     ($($name:ident : $value:expr),*) => {{
         #[allow(unused_mut)]
-        let mut obj: ::std::collections::HashMap<$crate::ast::Ident, $crate::value::Value> = ::std::collections::HashMap::new();
+        let mut obj = $crate::value::ObjectValue::new();
         object_value!(@impl obj, $($name : $value),*)
     }};
     (@impl $obj:ident, $name:ident : $value:expr, $($rest_name:ident : $rest_value:expr),*) => {{

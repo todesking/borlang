@@ -3,6 +3,7 @@ use crate::ast::TopTerm;
 use crate::value::AtomValue;
 use crate::value::LocalEnv;
 use crate::value::LocalEnvRef;
+use crate::value::ObjectValue;
 use crate::value::RefValue;
 use crate::Expr;
 use crate::Program;
@@ -102,12 +103,12 @@ impl Env {
         match expr {
             Expr::AtomValue(v) => Ok(v.clone().into()),
             Expr::Object { exprs } => {
-                let mut values = HashMap::new();
+                let mut obj = ObjectValue::new();
                 for (name, expr) in exprs.iter() {
                     let value = self.eval_expr(expr, local_env)?;
-                    values.insert(name.clone(), value);
+                    obj.insert(name.clone(), value);
                 }
-                Ok(Value::object(values))
+                Ok(Value::object(obj))
             }
             Expr::Array(items) => Ok(Value::array(
                 items
@@ -164,9 +165,8 @@ impl Env {
                 let value = self.eval_expr(expr, local_env)?;
                 match value {
                     Value::Ref(ref ref_value) => match &**ref_value {
-                        RefValue::Object { values } => values
+                        RefValue::Object(obj) => obj
                             .borrow()
-                            .0
                             .get(name)
                             .cloned()
                             .ok_or_else(|| EvalError::PropertyNotFound(name.clone())),
