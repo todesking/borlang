@@ -91,6 +91,7 @@ mod test {
     #[test]
     fn int_lit() {
         assert_eval_ok!("1", 1);
+        assert_eval_ok!("null", Value::null());
     }
     #[test]
     fn add_sub() {

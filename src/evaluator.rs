@@ -71,6 +71,7 @@ impl Env {
         env.register_instrinsic("!=", binop_any(|lhs, rhs| Ok((lhs != rhs).into())));
         env.bind_global("true", true).unwrap();
         env.bind_global("false", false).unwrap();
+        env.bind_global("null", Value::null()).unwrap();
         env
     }
 
