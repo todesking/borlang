@@ -233,4 +233,19 @@ mod test {
             array_value![1, object_value! {}, array_value![]]
         );
     }
+
+    #[test]
+    fn rebind_global() {
+        let mut env = Env::new();
+        env.eval_expr(&parse_expr("let a = 1").unwrap(), &None).unwrap();
+        assert_eq!(
+            env.eval_expr(&parse_expr("let a = 1").unwrap(), &None),
+            Err(EvalError::NameDefined("a".into()))
+        );
+        env.allow_rebind_global(true);
+        assert_eq!(
+            env.eval_expr(&parse_expr("let a = 1").unwrap(), &None),
+            Ok(Value::null()),
+        );
+    }
 }

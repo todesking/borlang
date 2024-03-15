@@ -12,6 +12,7 @@ fn repl_main() -> Result<i32, Box<dyn Error>> {
     let mut rl = rustyline::DefaultEditor::new()?;
 
     let mut env = Env::prelude();
+    env.allow_rebind_global(true);
 
     loop {
         let line = rl.readline("borlang> ");

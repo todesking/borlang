@@ -36,6 +36,7 @@ pub type IntrinsicFn = dyn Fn(&[Value]) -> EvalResult;
 pub struct Env {
     vars: HashMap<Ident, Value>,
     intrinsics: HashMap<Ident, Box<IntrinsicFn>>,
+    allow_rebind_global: bool,
 }
 
 fn binop_any<F: Fn(&Value, &Value) -> EvalResult>(f: F) -> impl Fn(&[Value]) -> EvalResult {
@@ -212,13 +213,17 @@ impl Env {
         }
     }
 
+    pub fn allow_rebind_global(&mut self, v: bool) {
+        self.allow_rebind_global = v;
+    }
+
     pub fn bind_global<I: Into<Ident>, V: Into<Value>>(
         &mut self,
         name: I,
         value: V,
     ) -> Result<(), EvalError> {
         let name = name.into();
-        if self.vars.contains_key(&name) {
+        if !self.allow_rebind_global && self.vars.contains_key(&name) {
             return Err(EvalError::NameDefined(name));
         }
         self.vars.insert(name, value.into());
@@ -232,14 +237,9 @@ impl Env {
         value: Value,
     ) -> Result<(), EvalError> {
         if let Some(local_env) = local_env {
-            LocalEnv::bind(local_env, name.clone(), value)?;
-            Ok(())
+            LocalEnv::bind(local_env, name.clone(), value)
         } else {
-            if self.vars.contains_key(&name) {
-                return Err(EvalError::NameDefined(name));
-            }
-            self.vars.insert(name, value);
-            Ok(())
+            self.bind_global(name, value)
         }
     }
 
