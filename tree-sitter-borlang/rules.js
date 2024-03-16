@@ -20,6 +20,7 @@ const Prec = {
 const common_rules = {
   _expr: $ => choice(
     $.expr_int,
+    $.expr_str,
     $.expr_var,
     $.expr_object,
     $.expr_paren,
@@ -34,6 +35,12 @@ const common_rules = {
     $.expr_prop,
   ),
   expr_int: $ => /[0-9]+/,
+  expr_str: $ => seq(
+    '"',
+    optional(field('content', $.str_body)),
+    '"',
+  ),
+  str_body: $ => repeat1(choice(/[^\\]/, /\\./)),
   expr_var: $ => field('ident', $.ident),
   expr_paren: $ => seq('(', field('expr', $._expr), ')'),
   expr_binop: $ => choice(

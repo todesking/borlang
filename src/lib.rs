@@ -237,7 +237,8 @@ mod test {
     #[test]
     fn rebind_global() {
         let mut env = Env::new();
-        env.eval_expr(&parse_expr("let a = 1").unwrap(), &None).unwrap();
+        env.eval_expr(&parse_expr("let a = 1").unwrap(), &None)
+            .unwrap();
         assert_eq!(
             env.eval_expr(&parse_expr("let a = 1").unwrap(), &None),
             Err(EvalError::NameDefined("a".into()))
@@ -247,5 +248,12 @@ mod test {
             env.eval_expr(&parse_expr("let a = 1").unwrap(), &None),
             Ok(Value::null()),
         );
+    }
+
+    #[test]
+    fn string() {
+        assert_eval_ok!(r#""""#, "");
+        assert_eval_ok!(r#""foo""#, "foo");
+        assert_eval_ok!(r#""HELLO\"WORLD""#, "HELLO\"WORLD");
     }
 }

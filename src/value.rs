@@ -1,4 +1,7 @@
-use std::{collections::HashMap, fmt::Display};
+use std::{
+    collections::HashMap,
+    fmt::{Display, Write},
+};
 
 use gc::{Finalize, Gc, GcCell, Trace};
 
@@ -84,6 +87,11 @@ impl Display for Value {
                     f.write_str("#fun:")?;
                     name.fmt(f)?;
                 }
+                AtomValue::Str(s) => {
+                    f.write_char('"')?;
+                    f.write_str(s)?;
+                    f.write_char('"')?;
+                }
             },
         }
         Ok(())
@@ -117,6 +125,7 @@ pub enum AtomValue {
     Int(i32),
     Intrinsic(Ident),
     Bool(bool),
+    Str(String),
 }
 impl From<AtomValue> for Value {
     fn from(value: AtomValue) -> Self {
@@ -137,6 +146,11 @@ impl From<bool> for Value {
 impl<T: Into<Value>> From<Vec<T>> for Value {
     fn from(value: Vec<T>) -> Self {
         Value::array(value.into_iter().map(|v| v.into()).collect())
+    }
+}
+impl From<&str> for Value {
+    fn from(value: &str) -> Self {
+        AtomValue::Str(value.into()).into()
     }
 }
 

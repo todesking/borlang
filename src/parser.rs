@@ -1,5 +1,6 @@
-use std::error::Error;
+use std::{error::Error, sync::OnceLock};
 
+use regex::Regex;
 use tree_sitter::Node;
 
 use crate::{
@@ -134,6 +135,11 @@ fn to_string(node: Node<'_>, src: &'_ str) -> Result<String, Box<dyn Error>> {
     String::from_utf8(bytes).map_err(|e| e.into())
 }
 
+fn to_str<'a>(node: Node<'_>, src: &'a str) -> Result<&'a str, Box<dyn Error>> {
+    validate_node(node)?;
+    Ok(&src[node.byte_range()])
+}
+
 fn to_ident(node: Node<'_>, src: &'_ str) -> Result<Ident, Box<dyn Error>> {
     Ok(Ident(to_string(node, src)?))
 }
@@ -193,6 +199,37 @@ fn to_expr(node: Node<'_>, src: &'_ str) -> Result<Expr, Box<dyn Error>> {
             expr: Box::new(get_one(node, "expr", src, to_expr)?),
             name: get_one(node, "name", src, to_ident)?,
         }),
+        "expr_str" => Ok(Expr::AtomValue(AtomValue::Str(parse_content(
+            get_option(node, "content", src, to_str)?.unwrap_or(""),
+        )?))),
         _ => unexpected_node(node),
     }
+}
+
+static STR_CONTENT_RE: OnceLock<Regex> = OnceLock::new();
+
+fn parse_content(s: &str) -> Result<String, Box<dyn Error>> {
+    let re = STR_CONTENT_RE.get_or_init(|| Regex::new(r#"\\(.)"#).unwrap());
+    try_replace_all(re, s, |captures| match &captures[1] {
+        "\\" => Ok("\\"),
+        r#"""# => Ok(r#"""#),
+        other => Err(format!("Invalid escape sequence: \\{}", other).into()),
+    })
+}
+
+fn try_replace_all<E>(
+    re: &Regex,
+    haystack: &str,
+    replacement: impl Fn(&regex::Captures) -> Result<&'static str, E>,
+) -> Result<String, E> {
+    let mut new = String::with_capacity(haystack.len());
+    let mut last_match = 0;
+    for caps in re.captures_iter(haystack) {
+        let m = caps.get(0).unwrap();
+        new.push_str(&haystack[last_match..m.start()]);
+        new.push_str(replacement(&caps)?);
+        last_match = m.end();
+    }
+    new.push_str(&haystack[last_match..]);
+    Ok(new)
 }
