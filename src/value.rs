@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     fmt::{Display, Write},
+    rc::Rc,
 };
 
 use gc::{Finalize, Gc, GcCell, Trace};
@@ -125,8 +126,14 @@ pub enum AtomValue {
     Int(i32),
     Intrinsic(Ident),
     Bool(bool),
-    Str(String),
+    Str(Rc<String>),
 }
+impl AtomValue {
+    pub fn str<S: Into<String>>(s: S) -> AtomValue {
+        AtomValue::Str(Rc::new(s.into()))
+    }
+}
+
 impl From<AtomValue> for Value {
     fn from(value: AtomValue) -> Self {
         Value::Atom(value)
@@ -150,7 +157,7 @@ impl<T: Into<Value>> From<Vec<T>> for Value {
 }
 impl From<&str> for Value {
     fn from(value: &str) -> Self {
-        AtomValue::Str(value.into()).into()
+        AtomValue::str(value).into()
     }
 }
 

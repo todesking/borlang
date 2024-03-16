@@ -141,7 +141,7 @@ fn to_str<'a>(node: Node<'_>, src: &'a str) -> Result<&'a str, Box<dyn Error>> {
 }
 
 fn to_ident(node: Node<'_>, src: &'_ str) -> Result<Ident, Box<dyn Error>> {
-    Ok(Ident(to_string(node, src)?))
+    Ok(Ident::new(to_string(node, src)?))
 }
 
 fn to_expr(node: Node<'_>, src: &'_ str) -> Result<Expr, Box<dyn Error>> {
@@ -199,7 +199,7 @@ fn to_expr(node: Node<'_>, src: &'_ str) -> Result<Expr, Box<dyn Error>> {
             expr: Box::new(get_one(node, "expr", src, to_expr)?),
             name: get_one(node, "name", src, to_ident)?,
         }),
-        "expr_str" => Ok(Expr::AtomValue(AtomValue::Str(parse_content(
+        "expr_str" => Ok(Expr::AtomValue(AtomValue::str(parse_content(
             get_option(node, "content", src, to_str)?.unwrap_or(""),
         )?))),
         _ => unexpected_node(node),

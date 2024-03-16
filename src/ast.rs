@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, rc::Rc};
 
 use crate::value::AtomValue;
 
@@ -13,10 +13,15 @@ pub enum TopTerm {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord)]
-pub struct Ident(pub String);
+pub struct Ident(Rc<String>);
+impl Ident {
+    pub fn new<S: Into<String>>(s: S) -> Ident {
+        Ident(Rc::new(s.into()))
+    }
+}
 impl<S: Into<String>> From<S> for Ident {
     fn from(value: S) -> Self {
-        Ident(value.into())
+        Ident::new(value)
     }
 }
 impl Display for Ident {

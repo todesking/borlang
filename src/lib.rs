@@ -19,7 +19,7 @@ macro_rules! object_value {
         object_value!(@impl obj, $($name : $value),*)
     }};
     (@impl $obj:ident, $name:ident : $value:expr, $($rest_name:ident : $rest_value:expr),*) => {{
-        $obj.insert($crate::ast::Ident(stringify!($name).to_owned()), $value.into());
+        $obj.insert($crate::ast::Ident::new(stringify!($name).to_owned()), $value.into());
         object_value!(@impl $obj, $($rest_name : $rest_value),*)
     }};
     (@impl $obj:ident, $name:ident : $value:expr) => {
