@@ -32,11 +32,16 @@ impl Error for EvalError {}
 pub type EvalResult = Result<Value, EvalError>;
 pub type IntrinsicFn = dyn Fn(&[Value]) -> EvalResult;
 
-#[derive(Default)]
 pub struct Env {
     vars: HashMap<Ident, Value>,
     intrinsics: HashMap<Ident, Box<IntrinsicFn>>,
     allow_rebind_global: bool,
+    array_proto: ObjectValue,
+}
+impl Default for Env {
+    fn default() -> Self {
+        Env::new()
+    }
 }
 
 fn binop_any<F: Fn(&Value, &Value) -> EvalResult>(f: F) -> impl Fn(&[Value]) -> EvalResult {
@@ -61,10 +66,21 @@ fn binop<
 
 impl Env {
     pub fn new() -> Env {
-        Default::default()
-    }
-    pub fn prelude() -> Env {
-        let mut env = Env::new();
+        let mut env = Env {
+            vars: Default::default(),
+            intrinsics: Default::default(),
+            allow_rebind_global: false,
+            array_proto: ObjectValue::new(),
+        };
+        env.register_instrinsic("#array_len", |args| match args {
+            [this] => this.use_array(|arr| Ok((arr.len() as i32).into())),
+            _ => Err(EvalError::ArgumentLength {
+                expected: 1,
+                actual: args.len(),
+            }),
+        });
+        env.array_proto
+            .insert("len".into(), Value::intrinsic("#array_len"));
         env.register_instrinsic("+", binop(|lhs: i32, rhs: i32| Ok(Value::int(lhs + rhs))));
         env.register_instrinsic("-", binop(|lhs: i32, rhs: i32| Ok(Value::int(lhs - rhs))));
         env.register_instrinsic("*", binop(|lhs: i32, rhs: i32| Ok(Value::int(lhs * rhs))));
@@ -75,7 +91,6 @@ impl Env {
         env.bind_global("null", Value::null()).unwrap();
         env
     }
-
     pub fn register_instrinsic<S: Into<Ident>, F: 'static + Fn(&[Value]) -> EvalResult>(
         &mut self,
         name: S,
@@ -165,18 +180,30 @@ impl Env {
             }
             Expr::Prop { expr, name } => {
                 let value = self.eval_expr(expr, local_env)?;
-                match value {
-                    Value::Ref(ref ref_value) => match &**ref_value {
-                        RefValue::Object(obj) => obj
-                            .borrow()
-                            .get(name)
-                            .cloned()
-                            .ok_or_else(|| EvalError::PropertyNotFound(name.clone())),
-                        _ => Err(EvalError::TypeError("Object".to_owned(), value.clone())),
-                    },
-                    _ => Err(EvalError::TypeError("Object".to_owned(), value.clone())),
-                }
+                self.read_object(&value, |obj| {
+                    obj.get(name)
+                        .cloned()
+                        .ok_or_else(|| EvalError::PropertyNotFound(name.clone()))
+                })
             }
+        }
+    }
+
+    fn read_object<F: FnOnce(&ObjectValue) -> EvalResult>(
+        &self,
+        value: &Value,
+        f: F,
+    ) -> EvalResult {
+        match value {
+            Value::Atom(_) => todo!(),
+            Value::Ref(ref_value) => match &**ref_value {
+                RefValue::Object(obj) => {
+                    let obj = obj.borrow();
+                    f(&obj)
+                }
+                RefValue::Array(_) => f(&self.array_proto),
+                _ => todo!(),
+            },
         }
     }
 

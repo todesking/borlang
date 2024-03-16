@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn repl_main() -> Result<i32, Box<dyn Error>> {
     let mut rl = rustyline::DefaultEditor::new()?;
 
-    let mut env = Env::prelude();
+    let mut env = Env::new();
     env.allow_rebind_global(true);
 
     loop {

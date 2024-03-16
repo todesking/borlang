@@ -76,7 +76,7 @@ mod test {
             assert_eval_impl!([$actual], $expected, $unwrap);
         }};
         ([$($es:literal),+], $expected:expr, $unwrap:ident) => {
-            let mut env = Env::prelude();
+            let mut env = Env::new();
             assert_eval_impl!(@env env, [$($es),+], $expected, $unwrap);
         };
         (@env $env:ident, [$e1:literal, $($es:literal),+], $expected:expr, $unwrap:ident) => {
@@ -255,5 +255,11 @@ mod test {
         assert_eval_ok!(r#""""#, "");
         assert_eval_ok!(r#""foo""#, "foo");
         assert_eval_ok!(r#""HELLO\"WORLD""#, "HELLO\"WORLD");
+    }
+
+    #[test]
+    fn array_len() {
+        assert_eval_ok!("[].len()", 0);
+        assert_eval_ok!("[1,2,3].len()", 3);
     }
 }

@@ -6,7 +6,11 @@ use std::{
 
 use gc::{Finalize, Gc, GcCell, Trace};
 
-use crate::{ast::Ident, evaluator::EvalError, Expr};
+use crate::{
+    ast::Ident,
+    evaluator::{EvalError, EvalResult},
+    Expr,
+};
 
 #[derive(Debug, PartialEq, Eq, Clone, Finalize)]
 pub enum Value {
@@ -28,8 +32,8 @@ impl Value {
     pub fn bool(v: bool) -> Value {
         v.into()
     }
-    pub fn intrinsic(id: Ident) -> Value {
-        AtomValue::Intrinsic(id).into()
+    pub fn intrinsic<S: Into<Ident>>(id: S) -> Value {
+        AtomValue::Intrinsic(id.into()).into()
     }
     pub fn null() -> Value {
         AtomValue::Null.into()
@@ -47,6 +51,19 @@ impl Value {
     }
     pub fn array(v: Vec<Value>) -> Value {
         RefValue::Array(GcCell::new(v)).into()
+    }
+
+    pub fn use_array<F: FnOnce(&[Value]) -> EvalResult>(&self, f: F) -> EvalResult {
+        match self {
+            Value::Atom(_) => Err(EvalError::TypeError("Array".into(), self.clone())),
+            Value::Ref(ref_value) => match &**ref_value {
+                RefValue::Array(arr) => {
+                    let arr = arr.borrow();
+                    f(&arr)
+                }
+                _ => Err(EvalError::TypeError("Array".into(), self.clone())),
+            },
+        }
     }
 }
 
