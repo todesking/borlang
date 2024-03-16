@@ -34,13 +34,13 @@ const common_rules = {
     $.expr_if,
     $.expr_prop,
   ),
-  expr_int: $ => /[0-9]+/,
+  expr_int: _ => /[0-9]+/,
   expr_str: $ => seq(
     '"',
     optional(field('content', $.str_body)),
     '"',
   ),
-  str_body: $ => repeat1(choice(/[^\\]/, /\\./)),
+  str_body: _ => repeat1(choice(/[^\\]/, /\\./)),
   expr_var: $ => field('ident', $.ident),
   expr_paren: $ => seq('(', field('expr', $._expr), ')'),
   expr_binop: $ => choice(
@@ -119,12 +119,12 @@ const common_rules = {
     '.',
     field('name', $.ident),
   )),
-  ident: $ => /[A-Za-z_][a-z0-9_]*/,
-  op_plus: $ => '+',
-  op_minus: $ => '-',
-  op_mul: $ => '*',
-  op_eqeq: $ => '==',
-  op_neq: $ => '!=',
+  ident: _ => /[A-Za-z_][a-z0-9_]*/,
+  op_plus: _ => '+',
+  op_minus: _ => '-',
+  op_mul: _ => '*',
+  op_eqeq: _ => '==',
+  op_neq: _ => '!=',
 }
 
 /**
