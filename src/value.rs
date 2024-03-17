@@ -65,6 +65,18 @@ impl Value {
             },
         }
     }
+    pub fn use_array_mut<F: FnOnce(&mut Vec<Value>) -> EvalResult>(&self, f: F) -> EvalResult {
+        match self {
+            Value::Atom(_) => Err(EvalError::TypeError("Array".into(), self.clone())),
+            Value::Ref(ref_value) => match &**ref_value {
+                RefValue::Array(arr) => {
+                    let mut arr = arr.borrow_mut();
+                    f(&mut arr)
+                }
+                _ => Err(EvalError::TypeError("Array".into(), self.clone())),
+            },
+        }
+    }
 }
 
 impl Display for Value {

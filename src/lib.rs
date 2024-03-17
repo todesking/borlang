@@ -262,4 +262,12 @@ mod test {
         assert_eval_ok!("[].len()", 0);
         assert_eval_ok!("[1,2,3].len()", 3);
     }
+
+    #[test]
+    fn array_push() {
+        assert_eval_ok!(
+            ["let arr = [1,2,3]", "arr.push(4)", "arr"],
+            array_value![1, 2, 3, 4]
+        );
+    }
 }

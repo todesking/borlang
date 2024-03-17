@@ -81,6 +81,18 @@ impl Env {
         });
         env.array_proto
             .insert("len".into(), Value::intrinsic("#array_len"));
+        env.register_instrinsic("#array_push", |args| match args {
+            [this, value] => this.use_array_mut(|arr| {
+                arr.push(value.clone());
+                Ok(Value::null())
+            }),
+            _ => Err(EvalError::ArgumentLength {
+                expected: 2,
+                actual: args.len(),
+            }),
+        });
+        env.array_proto
+            .insert("push".into(), Value::intrinsic("#array_push"));
         env.register_instrinsic("+", binop(|lhs: i32, rhs: i32| Ok(Value::int(lhs + rhs))));
         env.register_instrinsic("-", binop(|lhs: i32, rhs: i32| Ok(Value::int(lhs - rhs))));
         env.register_instrinsic("*", binop(|lhs: i32, rhs: i32| Ok(Value::int(lhs * rhs))));
