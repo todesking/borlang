@@ -145,14 +145,20 @@ impl Env {
                     Ok(Value::null())
                 }
             }
-            Expr::App { f, args } => {
-                let f = self.eval_expr(f, local_env)?;
-                let args = args
-                    .iter()
-                    .map(|a| self.eval_expr(a, local_env))
-                    .collect::<Result<Vec<_>, _>>()?;
-                self.eval_app(&f, &args)
-            }
+            Expr::App { f, args } => match &**f {
+                Expr::Prop { expr, name } => {
+                    let this = self.eval_expr(expr, local_env)?;
+                    let f = self.get_prop(&this, name)?;
+                    let mut args = self.eval_args(args, local_env)?;
+                    args.insert(0, this);
+                    self.eval_app(&f, &args)
+                }
+                _ => {
+                    let f = self.eval_expr(f, local_env)?;
+                    let args = self.eval_args(args, local_env)?;
+                    self.eval_app(&f, &args)
+                }
+            },
             Expr::Let { name, expr } => {
                 let value = self.eval_expr(expr, local_env)?;
                 self.bind_var(local_env, name.clone(), value)?;
@@ -180,13 +186,27 @@ impl Env {
             }
             Expr::Prop { expr, name } => {
                 let value = self.eval_expr(expr, local_env)?;
-                self.read_object(&value, |obj| {
-                    obj.get(name)
-                        .cloned()
-                        .ok_or_else(|| EvalError::PropertyNotFound(name.clone()))
-                })
+                self.get_prop(&value, name)
             }
         }
+    }
+
+    fn get_prop(&self, value: &Value, name: &Ident) -> EvalResult {
+        self.read_object(value, |obj| {
+            obj.get(name)
+                .cloned()
+                .ok_or_else(|| EvalError::PropertyNotFound(name.clone()))
+        })
+    }
+
+    fn eval_args(
+        &mut self,
+        args: &[Expr],
+        local_env: &Option<LocalEnvRef>,
+    ) -> Result<Vec<Value>, EvalError> {
+        args.iter()
+            .map(|a| self.eval_expr(a, local_env))
+            .collect::<Result<Vec<_>, _>>()
     }
 
     fn read_object<F: FnOnce(&ObjectValue) -> EvalResult>(
