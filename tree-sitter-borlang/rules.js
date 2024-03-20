@@ -28,6 +28,7 @@ const common_rules = {
     $.expr_paren,
     $.expr_array,
     $.expr_binop,
+    $.expr_neg,
     $.expr_block,
     $.expr_let,
     $.expr_reassign,
@@ -61,6 +62,10 @@ const common_rules = {
       field("op", choice($.op_plus, $.op_minus)),
       field("rhs", $._expr))),
   ),
+  expr_neg: $ => prec.left(seq(
+    '-',
+    field('expr', $._expr)
+  )),
   expr_object: $ => prec(Prec.object, seq(
     '{',
     repsep(

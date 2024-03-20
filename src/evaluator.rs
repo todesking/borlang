@@ -100,6 +100,16 @@ impl Env {
         env.register_instrinsic("%", binop(|lhs: i32, rhs: i32| Ok(Value::int(lhs % rhs))));
         env.register_instrinsic("==", binop_any(|lhs, rhs| Ok((lhs == rhs).into())));
         env.register_instrinsic("!=", binop_any(|lhs, rhs| Ok((lhs != rhs).into())));
+        env.register_instrinsic("#unary-", |args| {
+            if args.len() != 1 {
+                return Err(EvalError::ArgumentLength {
+                    expected: 1,
+                    actual: args.len(),
+                });
+            }
+            let v = i32::try_from(&args[0])?;
+            Ok((-v).into())
+        });
         env.bind_global("true", true).unwrap();
         env.bind_global("false", false).unwrap();
         env.bind_global("null", Value::null()).unwrap();

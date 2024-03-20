@@ -206,6 +206,10 @@ fn to_expr(node: Node<'_>, src: &'_ str) -> Result<Expr, Box<dyn Error>> {
             expr: Box::new(get_one(node, "expr", src, to_expr)?),
             index: Box::new(get_one(node, "index", src, to_expr)?),
         }),
+        "expr_neg" => Ok(Expr::App {
+            f: Box::new(Expr::Var("#unary-".into())),
+            args: vec![get_one(node, "expr", src, to_expr)?],
+        }),
         _ => unexpected_node(node),
     }
 }

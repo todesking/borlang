@@ -285,4 +285,11 @@ mod test {
         assert_eval_ok!("10 % 5", 0);
         assert_eval_ok!("13 % 5", 3);
     }
+
+    #[test]
+    fn op_unary_minus() {
+        assert_eval_ok!("-1", -1);
+        assert_eval_ok!("1 + -[1,2,3][1] * 3", -5);
+        assert_eval_err!("-[]", EvalError::TypeError("Int".into(), array_value![]));
+    }
 }
