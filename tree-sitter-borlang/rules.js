@@ -54,7 +54,7 @@ const common_rules = {
     )),
     prec.left(Prec.mul, seq(
       field("lhs", $._expr),
-      field("op", $.op_mul),
+      field("op", choice($.op_mul, $.op_mod)),
       field("rhs", $._expr))),
     prec.left(Prec.add, seq(
       field("lhs", $._expr),
@@ -132,6 +132,7 @@ const common_rules = {
   op_plus: _ => '+',
   op_minus: _ => '-',
   op_mul: _ => '*',
+  op_mod: _ => '%',
   op_eqeq: _ => '==',
   op_neq: _ => '!=',
 }

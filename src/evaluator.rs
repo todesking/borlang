@@ -97,6 +97,7 @@ impl Env {
         env.register_instrinsic("+", binop(|lhs: i32, rhs: i32| Ok(Value::int(lhs + rhs))));
         env.register_instrinsic("-", binop(|lhs: i32, rhs: i32| Ok(Value::int(lhs - rhs))));
         env.register_instrinsic("*", binop(|lhs: i32, rhs: i32| Ok(Value::int(lhs * rhs))));
+        env.register_instrinsic("%", binop(|lhs: i32, rhs: i32| Ok(Value::int(lhs % rhs))));
         env.register_instrinsic("==", binop_any(|lhs, rhs| Ok((lhs == rhs).into())));
         env.register_instrinsic("!=", binop_any(|lhs, rhs| Ok((lhs != rhs).into())));
         env.bind_global("true", true).unwrap();

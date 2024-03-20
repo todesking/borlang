@@ -279,4 +279,10 @@ mod test {
         assert_eval_err!("[][[]]", EvalError::TypeError("Int".into(), array_value![]));
         assert_eval_err!("[][0]", EvalError::IndexOutOfBound { len: 0, index: 0 });
     }
+
+    #[test]
+    fn op_mod() {
+        assert_eval_ok!("10 % 5", 0);
+        assert_eval_ok!("13 % 5", 3);
+    }
 }
