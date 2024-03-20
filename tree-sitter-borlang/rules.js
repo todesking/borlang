@@ -8,6 +8,8 @@ const Prec = {
   eqeq: 1,
   add: 2,
   mul: 3,
+
+  index: 8,
   prop: 9,
 
   block: 0,
@@ -33,6 +35,7 @@ const common_rules = {
     $.expr_fun,
     $.expr_if,
     $.expr_prop,
+    $.expr_index,
   ),
   expr_int: _ => /[0-9]+/,
   expr_str: $ => seq(
@@ -118,6 +121,12 @@ const common_rules = {
     field('expr', $._expr),
     '.',
     field('name', $.ident),
+  )),
+  expr_index: $ => prec.left(Prec.index, seq(
+    field('expr', $._expr),
+    '[',
+    field('index', $._expr),
+    ']',
   )),
   ident: _ => /[A-Za-z_][a-z0-9_]*/,
   op_plus: _ => '+',

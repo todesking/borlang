@@ -270,4 +270,13 @@ mod test {
             array_value![1, 2, 3, 4]
         );
     }
+
+    #[test]
+    fn array_index() {
+        assert_eval_ok!("[1,2,3][0]", 1);
+        assert_eval_ok!("[1,[2,3],4][1][0]", 2);
+
+        assert_eval_err!("[][[]]", EvalError::TypeError("Int".into(), array_value![]));
+        assert_eval_err!("[][0]", EvalError::IndexOutOfBound { len: 0, index: 0 });
+    }
 }

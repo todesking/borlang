@@ -202,6 +202,10 @@ fn to_expr(node: Node<'_>, src: &'_ str) -> Result<Expr, Box<dyn Error>> {
         "expr_str" => Ok(Expr::AtomValue(AtomValue::str(parse_content(
             get_option(node, "content", src, to_str)?.unwrap_or(""),
         )?))),
+        "expr_index" => Ok(Expr::Index {
+            expr: Box::new(get_one(node, "expr", src, to_expr)?),
+            index: Box::new(get_one(node, "index", src, to_expr)?),
+        }),
         _ => unexpected_node(node),
     }
 }

@@ -67,4 +67,8 @@ pub enum Expr {
         expr: Box<Expr>,
         name: Ident,
     },
+    Index {
+        expr: Box<Expr>,
+        index: Box<Expr>,
+    },
 }

@@ -21,6 +21,7 @@ pub enum EvalError {
     NameDefined(Ident),
     PropertyNotFound(Ident),
     ArgumentLength { expected: usize, actual: usize },
+    IndexOutOfBound { len: usize, index: i32 },
 }
 impl Display for EvalError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -200,6 +201,11 @@ impl Env {
                 let value = self.eval_expr(expr, local_env)?;
                 self.get_prop(&value, name)
             }
+            Expr::Index { expr, index } => {
+                let value = self.eval_expr(expr, local_env)?;
+                let index = self.eval_expr(index, local_env)?;
+                self.get_index(&value, &index)
+            }
         }
     }
 
@@ -208,6 +214,25 @@ impl Env {
             obj.get(name)
                 .cloned()
                 .ok_or_else(|| EvalError::PropertyNotFound(name.clone()))
+        })
+    }
+
+    fn get_index(&self, value: &Value, index: &Value) -> EvalResult {
+        let index = i32::try_from(index)?;
+        value.use_array(|values| {
+            if index < 0 {
+                Err(EvalError::IndexOutOfBound {
+                    len: values.len(),
+                    index,
+                })
+            } else if (index as usize) < values.len() {
+                Ok(values[index as usize].clone())
+            } else {
+                Err(EvalError::IndexOutOfBound {
+                    len: values.len(),
+                    index,
+                })
+            }
         })
     }
 
