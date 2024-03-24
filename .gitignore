@@ -1,5 +1,6 @@
 /target
 node_modules
-tree-sitter-borlang/src
-tree-sitter-borlang/program_parser
-tree-sitter-borlang/expr_parser
+tree-sitter-borlang*/*
+!tree-sitter-borlang*/package.json
+!tree-sitter-borlang*/package-lock.json
+!tree-sitter-borlang*/*.js

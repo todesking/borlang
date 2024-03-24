@@ -142,27 +142,27 @@ const common_rules = {
   op_neq: _ => '!=',
 }
 
-/**
- * @type {Grammar<string>['rules']}
- */
-const program_rules = {
-  program: $ => field('top_terms', repeat($._top_term)),
-  _top_term: $ => choice($.top_term_let),
-  top_term_let: $ => seq(
-    'let',
-    field('name', $.ident),
-    '=',
-    field('expr', $._expr),
-    ';'),
-  ...common_rules,
-}
-module.exports.program_rules = program_rules;
+module.exports.program_grammar = grammar({
+  name: 'borlang',
+  word: $ => $.ident,
+  rules: {
+    program: $ => field('top_terms', repeat($._top_term)),
+    _top_term: $ => choice($.top_term_let),
+    top_term_let: $ => seq(
+      'let',
+      field('name', $.ident),
+      '=',
+      field('expr', $._expr),
+      ';'),
+    ...common_rules,
+  },
+})
 
-/**
- * @type {Grammar<string>['rules']}
- */
-const expr_rules = {
-  expr: $ => field('expr', $._expr),
-  ...common_rules,
-}
-module.exports.expr_rules = expr_rules;
+module.exports.expr_grammar = grammar({
+  name: 'borlang_expr',
+  word: $ => $.ident,
+  rules: {
+    expr: $ => field('expr', $._expr),
+    ...common_rules,
+  },
+})

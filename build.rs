@@ -1,31 +1,27 @@
 use std::{os::unix::ffi::OsStrExt, path::Path, process::Command};
 
 fn main() {
-    let parser_dir = Path::new("tree-sitter-borlang");
+    let program_parser_dir = Path::new("tree-sitter-borlang");
+    let expr_parser_dir = Path::new("tree-sitter-borlang-expr");
 
-    build_parser(parser_dir, "program");
-    build_parser(parser_dir, "expr");
+    build_parser(program_parser_dir, "program");
+    build_parser(expr_parser_dir, "expr");
 
-    println!("cargo:rerun-if-changed={}", parser_dir.to_str().unwrap());
+    println!("cargo:rerun-if-changed={}", program_parser_dir.to_str().unwrap());
+    println!("cargo:rerun-if-changed={}", expr_parser_dir.to_str().unwrap());
 }
 
-fn build_parser(base_dir: &Path, grammar_name: &str) {
-    let parser_dir = base_dir.join(format!("{grammar_name}_parser"));
-
-    std::fs::create_dir_all(&parser_dir).unwrap();
-
-    let grammar_path = base_dir.join(format!("{grammar_name}_grammar.js"));
-    tree_sitter_cli_generate(&parser_dir, &grammar_path);
-
-    tree_sitter_build(&parser_dir, grammar_name);
+fn build_parser(dir: &Path, grammar_name: &str) {
+    tree_sitter_cli_generate(&dir);
+    tree_sitter_build(&dir, grammar_name);
 }
 
-fn tree_sitter_cli_generate(dir: &Path, grammar_path: &Path) {
+fn tree_sitter_cli_generate(dir: &Path) {
     let mut cmd = Command::new("npm");
     let cmd = cmd
         .current_dir(dir)
         .args(["exec", "--", "tree-sitter-cli", "generate", "--no-bindings"])
-        .arg(&std::fs::canonicalize(grammar_path).unwrap());
+        .arg("grammar.js");
 
     println!("tree-sitter-cli generate {:?}", &cmd.get_args());
 
@@ -34,9 +30,8 @@ fn tree_sitter_cli_generate(dir: &Path, grammar_path: &Path) {
     eprintln!("{}", String::from_utf8_lossy(&out.stderr));
     if !out.status.success() {
         panic!(
-            "Parser generation failed: dir={}, grammar_path={}",
-            String::from_utf8_lossy(dir.as_os_str().as_bytes()),
-            String::from_utf8_lossy(grammar_path.as_os_str().as_bytes())
+            "Parser generation failed: dir={}",
+            String::from_utf8_lossy(dir.as_os_str().as_bytes())
         );
     }
 }

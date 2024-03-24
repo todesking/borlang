@@ -1,5 +1,5 @@
 {
-  "name": "tree-sitter-borlang",
+  "name": "tree-sitter-borlang-expr",
   "version": "1.0.0",
   "main": "bindings/node",
   "types": "bindings/node",
@@ -13,15 +13,16 @@
   },
   "devDependencies": {
     "tree-sitter-cli": "^0.21.0",
-    "typescript": "^5.4.2",
     "prebuildify": "^6.0.0"
   },
-  "tree-sitter": [{
-    "scope": "source.borlang",
-    "file-types": [
-      "borlang"
-    ]
-  }],
+  "tree-sitter": [
+    {
+      "scope": "source.borlang_expr",
+      "file-types": [
+        "borlang_expr"
+      ]
+    }
+  ],
   "dependencies": {
     "node-gyp-build": "^4.8.0"
   },
