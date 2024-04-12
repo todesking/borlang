@@ -9,7 +9,9 @@ edition = "2021"
 gc = { version = "0.5.0", features = ["derive"] }
 regex = "1.10.3"
 rustyline = "13.0.0"
-tree-sitter = "0.21.0"
+tree-sitter = "0.20.10"
+serde_tree_sitter = {git = "https://github.com/todesking/serde_tree_sitter"}
+serde = {version = "1.0.197", features = ["derive"]}
 
 [build-dependencies]
 cc="*"

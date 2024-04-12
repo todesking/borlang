@@ -7,13 +7,19 @@ fn main() {
     build_parser(program_parser_dir, "program");
     build_parser(expr_parser_dir, "expr");
 
-    println!("cargo:rerun-if-changed={}", program_parser_dir.to_str().unwrap());
-    println!("cargo:rerun-if-changed={}", expr_parser_dir.to_str().unwrap());
+    println!(
+        "cargo:rerun-if-changed={}",
+        program_parser_dir.to_str().unwrap()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        expr_parser_dir.to_str().unwrap()
+    );
 }
 
 fn build_parser(dir: &Path, grammar_name: &str) {
-    tree_sitter_cli_generate(&dir);
-    tree_sitter_build(&dir, grammar_name);
+    tree_sitter_cli_generate(dir);
+    tree_sitter_build(dir, grammar_name);
 }
 
 fn tree_sitter_cli_generate(dir: &Path) {

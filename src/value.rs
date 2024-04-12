@@ -388,7 +388,7 @@ mod test {
         assert_display!(
             Into::<Value>::into(RefValue::Fun {
                 params: vec![],
-                body: Box::new(Expr::Var("".into())),
+                body: Box::new(Expr::Var(("".into(),))),
                 local_env: None
             }),
             "#fun"

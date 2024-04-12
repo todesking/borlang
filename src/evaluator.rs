@@ -14,6 +14,7 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::fmt::Display;
 
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum EvalError {
     TypeError(String, Value),
@@ -142,10 +143,12 @@ impl Env {
     }
     pub fn eval_expr(&mut self, expr: &Expr, local_env: &Option<LocalEnvRef>) -> EvalResult {
         match expr {
-            Expr::AtomValue(v) => Ok(v.clone().into()),
-            Expr::Object { exprs } => {
+            Expr::Int(v) => Ok(AtomValue::Int(*v).into()),
+            Expr::Str { content } => Ok(AtomValue::Str(content.clone()).into()),
+            Expr::Object { name, expr } => {
+                assert!(name.len() == expr.len());
                 let mut obj = ObjectValue::new();
-                for (name, expr) in exprs.iter() {
+                for (name, expr) in name.iter().zip(expr) {
                     let value = self.eval_expr(expr, local_env)?;
                     obj.insert(name.clone(), value);
                 }
@@ -157,7 +160,8 @@ impl Env {
                     .map(|expr| self.eval_expr(expr, local_env))
                     .collect::<Result<Vec<_>, _>>()?,
             )),
-            Expr::Var(name) => self.get_var(local_env, name),
+            Expr::Var((name,)) => self.get_var(local_env, name),
+            Expr::Paren { expr } => self.eval_expr(expr, local_env),
             Expr::Block { terms, expr } => {
                 let local_env = Some(LocalEnv::extend(local_env.clone()));
                 for e in terms {
@@ -169,7 +173,18 @@ impl Env {
                     Ok(Value::null())
                 }
             }
-            Expr::App { f, args } => match &**f {
+            Expr::Binop { lhs, op, rhs } => {
+                let lhs = self.eval_expr(lhs, local_env)?;
+                let rhs = self.eval_expr(rhs, local_env)?;
+                let f = self.get_var(local_env, op)?;
+                self.eval_app(&f, &[lhs, rhs])
+            }
+            Expr::Negage { expr } => {
+                let f = self.get_var(local_env, &Ident::new("#unary-"))?;
+                let v = self.eval_expr(expr, local_env)?;
+                self.eval_app(&f, &[v])
+            }
+            Expr::App { expr: f, args } => match &**f {
                 Expr::Prop { expr, name } => {
                     let this = self.eval_expr(expr, local_env)?;
                     let f = self.get_prop(&this, name)?;
