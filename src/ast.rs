@@ -66,7 +66,7 @@ pub enum Expr {
     #[serde(rename = "expr_let")]
     Let { name: Ident, expr: Box<Expr> },
     #[serde(rename = "expr_reassign")]
-    Reassign { name: Ident, expr: Box<Expr> },
+    Reassign { lhs: Box<Expr>, rhs: Box<Expr> },
     #[serde(rename = "expr_if")]
     If {
         cond: Box<Expr>,

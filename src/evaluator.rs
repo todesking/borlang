@@ -22,6 +22,7 @@ pub enum EvalError {
     PropertyNotFound(Ident),
     ArgumentLength { expected: usize, actual: usize },
     IndexOutOfBound { len: usize, index: i32 },
+    AssignNotSupported,
 }
 impl Display for EvalError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -202,9 +203,29 @@ impl Env {
                 self.bind_var(local_env, name.clone(), value)?;
                 Ok(Value::null())
             }
-            Expr::Reassign { name, expr } => {
-                let value = self.eval_expr(expr, local_env)?;
-                self.reassign_var(local_env, name, value)?;
+            Expr::Reassign { lhs, rhs } => {
+                match &**lhs {
+                    Expr::Var(name) => {
+                        let value = self.eval_expr(rhs, local_env)?;
+                        self.reassign_var(local_env, name, value)?;
+                    }
+                    Expr::Index { expr, index } => {
+                        let value = self.eval_expr(rhs, local_env)?;
+                        let arr = self.eval_expr(expr, local_env)?;
+                        arr.use_array_mut(|arr| {
+                            let index: i32 = (&self.eval_expr(index, local_env)?).try_into()?;
+                            if arr.len() <= index as usize {
+                                return Err(EvalError::IndexOutOfBound {
+                                    len: arr.len(),
+                                    index,
+                                });
+                            }
+                            arr[index as usize] = value;
+                            Ok(Value::null())
+                        })?;
+                    }
+                    _ => return Err(EvalError::AssignNotSupported),
+                }
                 Ok(Value::null())
             }
             Expr::If { cond, th, el } => {

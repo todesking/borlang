@@ -159,6 +159,18 @@ mod test {
     }
 
     #[test]
+    fn array_reassign() {
+        assert_eval_ok!(
+            ["let a = [0, 1, 2]", "a[1] = 99", "a"],
+            array_value![0, 99, 2]
+        );
+        assert_eval_err!(
+            ["let a = [0, 1, 2]", "a[3] = 99"],
+            EvalError::IndexOutOfBound { len: 3, index: 3 }
+        );
+    }
+
+    #[test]
     fn function() {
         assert_eval_ok!("{let f = fn() => 123; f()}", 123);
         assert_eval_ok!("(fn(x) => x + 1)(100)", 101);
