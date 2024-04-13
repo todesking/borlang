@@ -14,7 +14,6 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::fmt::Display;
 
-
 #[derive(Debug, PartialEq, Eq)]
 pub enum EvalError {
     TypeError(String, Value),
@@ -160,7 +159,7 @@ impl Env {
                     .map(|expr| self.eval_expr(expr, local_env))
                     .collect::<Result<Vec<_>, _>>()?,
             )),
-            Expr::Var((name,)) => self.get_var(local_env, name),
+            Expr::Var(name) => self.get_var(local_env, name),
             Expr::Paren { expr } => self.eval_expr(expr, local_env),
             Expr::Block { terms, expr } => {
                 let local_env = Some(LocalEnv::extend(local_env.clone()));
@@ -179,7 +178,7 @@ impl Env {
                 let f = self.get_var(local_env, op)?;
                 self.eval_app(&f, &[lhs, rhs])
             }
-            Expr::Negage { expr } => {
+            Expr::Negate { expr } => {
                 let f = self.get_var(local_env, &Ident::new("#unary-"))?;
                 let v = self.eval_expr(expr, local_env)?;
                 self.eval_app(&f, &[v])

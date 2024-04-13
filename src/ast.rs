@@ -2,8 +2,6 @@ use regex::Regex;
 use serde::Deserialize;
 use std::{error::Error, fmt::Display, rc::Rc, sync::OnceLock};
 
-
-
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
 #[serde(rename = "program")]
 pub struct Program {
@@ -57,7 +55,7 @@ pub enum Expr {
         content: Rc<String>,
     },
     #[serde(rename = "expr_var")]
-    Var((Ident,)),
+    Var(Ident),
     #[serde(rename = "expr_app")]
     App { expr: Box<Expr>, args: Vec<Expr> },
     #[serde(rename = "expr_block")]
@@ -91,7 +89,7 @@ pub enum Expr {
         rhs: Box<Expr>,
     },
     #[serde(rename = "expr_neg")]
-    Negage { expr: Box<Expr> },
+    Negate { expr: Box<Expr> },
 }
 
 fn deserialize_string_content_opt<'de, D: serde::Deserializer<'de>>(

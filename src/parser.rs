@@ -1,8 +1,4 @@
-use std::{error::Error};
-
-
-
-
+use std::error::Error;
 
 use crate::{
     ast::{Expr, Program},
@@ -32,11 +28,7 @@ pub fn parse_expr(src: &str) -> Result<Expr, Box<dyn Error>> {
         .parse(src, None)
         .expect("tree_sitter's parse() should return tree");
 
-    #[derive(serde::Deserialize)]
-    #[serde(rename = "expr")]
-    struct Wrapper((Expr,));
-
-    serde_tree_sitter::from_tree::<Wrapper>(&tree, src, true)
+    serde_tree_sitter::from_tree::<(Expr,)>(&tree, src, true)
         .map_err(|e| e.into())
-        .map(|v| v.0 .0)
+        .map(|v| v.0)
 }

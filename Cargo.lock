@@ -372,7 +372,7 @@ dependencies = [
 [[package]]
 name = "serde_tree_sitter"
 version = "0.1.0"
-source = "git+https://github.com/todesking/serde_tree_sitter#925fa618c1937a16e94e27ad3de8c5439c76e196"
+source = "git+https://github.com/todesking/serde_tree_sitter#683e25d34341ddae36098ad730dee2284f0c6630"
 dependencies = [
  "serde",
  "thiserror",
