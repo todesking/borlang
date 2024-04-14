@@ -51,7 +51,10 @@ pub struct ArrayItem {
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
 pub enum ObjItem {
     #[serde(rename = "obj_item_kv")]
-    Kv(Ident, Box<Expr>),
+    Kv {
+        name: Ident,
+        expr: Option<Box<Expr>>,
+    },
     #[serde(rename = "obj_item_spread")]
     Spread(Box<Expr>),
 }

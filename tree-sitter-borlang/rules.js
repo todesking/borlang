@@ -14,6 +14,9 @@ const Prec = {
 
   block: 0,
   object: 1,
+
+  expr_var: 0,
+  obj_item_kv: 1,
 }
 
 /**
@@ -45,7 +48,7 @@ const common_rules = {
     '"',
   ),
   str_body: _ => repeat1(choice(/[^\\]/, /\\./)),
-  expr_var: $ => field('ident', $.ident),
+  expr_var: $ => prec(Prec.expr_var, field('ident', $.ident)),
   expr_paren: $ => seq('(', field('expr', $._expr), ')'),
   expr_binop: $ => choice(
     prec.left(Prec.eqeq, seq(
@@ -75,10 +78,12 @@ const common_rules = {
     '}',
   )),
   _obj_item: $ => choice($.obj_item_kv, $.obj_item_spread),
-  obj_item_kv: $ => seq(
+  obj_item_kv: $ => prec(Prec.obj_item_kv, seq(
     field('name', $.ident),
-    ':',
-    field('expr', $._expr),
+    optional(seq(
+      ':',
+      field('expr', $._expr),
+    ))),
   ),
   obj_item_spread: $ => seq(
     '..',

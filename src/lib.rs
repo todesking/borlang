@@ -208,6 +208,11 @@ mod test {
     }
 
     #[test]
+    fn obj_shorthand() {
+        assert_eval_ok!(["let a = 1", "{a, b: 2}"], object_value! {a: 1, b: 2});
+    }
+
+    #[test]
     fn function() {
         assert_eval_ok!("{let f = fn() => 123; f()}", 123);
         assert_eval_ok!("(fn(x) => x + 1)(100)", 101);

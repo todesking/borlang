@@ -132,8 +132,15 @@ impl Env {
                 let mut buf = ObjectValue::new();
                 for item in items {
                     match item {
-                        ObjItem::Kv(name, expr) => {
+                        ObjItem::Kv {
+                            name,
+                            expr: Some(expr),
+                        } => {
                             let value = self.eval_expr(expr, local_env)?;
+                            buf.insert(name.clone(), value);
+                        }
+                        ObjItem::Kv { name, expr: None } => {
+                            let value = self.get_var(local_env, name)?;
                             buf.insert(name.clone(), value);
                         }
                         ObjItem::Spread(expr) => {
