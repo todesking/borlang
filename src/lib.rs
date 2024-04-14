@@ -1,4 +1,5 @@
 pub mod ast;
+pub mod eval_error;
 pub mod evaluator;
 pub mod parser;
 pub mod value;
@@ -7,6 +8,7 @@ mod parser_impl;
 
 pub use ast::Expr;
 pub use ast::Program;
+pub use eval_error::EvalError;
 pub use evaluator::Env;
 pub use parser::{parse_expr, parse_program};
 pub use value::Value;
@@ -51,8 +53,6 @@ macro_rules! array_value {
 
 #[cfg(test)]
 mod test {
-    use crate::evaluator::EvalError;
-
     use super::*;
     use pretty_assertions::assert_eq;
 

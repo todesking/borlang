@@ -6,11 +6,7 @@ use std::{
 
 use gc::{Finalize, Gc, GcCell, Trace};
 
-use crate::{
-    ast::Ident,
-    evaluator::{EvalError, EvalResult},
-    Expr,
-};
+use crate::{ast::Ident, evaluator::EvalResult, EvalError, Expr};
 
 #[derive(Debug, PartialEq, Eq, Clone, Finalize)]
 pub enum Value {
