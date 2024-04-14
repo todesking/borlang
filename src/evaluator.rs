@@ -1,5 +1,6 @@
 use crate::ast::ArrayItem;
 use crate::ast::Ident;
+use crate::ast::ObjItem;
 use crate::ast::TopTerm;
 use crate::value::AtomValue;
 use crate::value::LocalEnv;
@@ -127,14 +128,26 @@ impl Env {
         match expr {
             Expr::Int(v) => Ok(AtomValue::Int(*v).into()),
             Expr::Str { content } => Ok(AtomValue::Str(content.clone()).into()),
-            Expr::Object { name, expr } => {
-                assert!(name.len() == expr.len());
-                let mut obj = ObjectValue::new();
-                for (name, expr) in name.iter().zip(expr) {
-                    let value = self.eval_expr(expr, local_env)?;
-                    obj.insert(name.clone(), value);
+            Expr::Object(items) => {
+                let mut buf = ObjectValue::new();
+                for item in items {
+                    match item {
+                        ObjItem::Kv(name, expr) => {
+                            let value = self.eval_expr(expr, local_env)?;
+                            buf.insert(name.clone(), value);
+                        }
+                        ObjItem::Spread(expr) => {
+                            let value = self.eval_expr(expr, local_env)?;
+                            value.use_object(|obj| {
+                                for (name, value) in obj.iter() {
+                                    buf.insert(name.clone(), value.clone());
+                                }
+                                Ok(())
+                            })?;
+                        }
+                    }
                 }
-                Ok(Value::object(obj))
+                Ok(Value::object(buf))
             }
             Expr::Array(items) => {
                 let mut buf = Vec::new();

@@ -69,15 +69,21 @@ const common_rules = {
   expr_object: $ => prec(Prec.object, seq(
     '{',
     repsep(
-      seq(
-        field('name', $.ident),
-        ':',
-        field('expr', $._expr),
-      ),
+      $._obj_item,
       ',',
     ),
     '}',
   )),
+  _obj_item: $ => choice($.obj_item_kv, $.obj_item_spread),
+  obj_item_kv: $ => seq(
+    field('name', $.ident),
+    ':',
+    field('expr', $._expr),
+  ),
+  obj_item_spread: $ => seq(
+    '..',
+    $._expr,
+  ),
   expr_block: $ => prec(Prec.block, seq(
     '{',
     repeat(seq(field('terms', $._expr), ';')),

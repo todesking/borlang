@@ -73,6 +73,15 @@ impl Value {
             },
         }
     }
+    pub fn use_object<T, F: FnOnce(&ObjectValue) -> EvalResult<T>>(&self, f: F) -> EvalResult<T> {
+        match self {
+            Value::Ref(ref_value) => match &**ref_value {
+                RefValue::Object(obj) => f(&obj.borrow()),
+                _ => Err(EvalError::type_error("Object", self.clone())),
+            },
+            _ => Err(EvalError::type_error("Object", self.clone())),
+        }
+    }
     pub fn use_object_mut<T, F: FnOnce(&mut ObjectValue) -> EvalResult<T>>(
         &self,
         f: F,
@@ -340,6 +349,27 @@ impl ObjectValue {
     }
     pub fn get(&self, name: &Ident) -> Option<&Value> {
         self.values.get(name)
+    }
+    pub fn iter(&self) -> impl Iterator<Item = (&Ident, &Value)> {
+        ObjectIter {
+            values: &self.values,
+            names_it: self.names.iter(),
+        }
+    }
+}
+pub struct ObjectIter<'a, I: Iterator<Item = &'a Ident>> {
+    names_it: I,
+    values: &'a HashMap<Ident, Value>,
+}
+impl<'a, I: Iterator<Item = &'a Ident>> Iterator for ObjectIter<'a, I> {
+    type Item = (&'a Ident, &'a Value);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let Some(name) = self.names_it.next() else {
+            return None;
+        };
+        let value = self.values.get(name).unwrap();
+        Some((name, value))
     }
 }
 unsafe impl Trace for ObjectValue {

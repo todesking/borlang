@@ -49,9 +49,17 @@ pub struct ArrayItem {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
+pub enum ObjItem {
+    #[serde(rename = "obj_item_kv")]
+    Kv(Ident, Box<Expr>),
+    #[serde(rename = "obj_item_spread")]
+    Spread(Box<Expr>),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
 pub enum Expr {
     #[serde(rename = "expr_object")]
-    Object { name: Vec<Ident>, expr: Vec<Expr> },
+    Object(Vec<ObjItem>),
     #[serde(rename = "expr_array")]
     Array(Vec<ArrayItem>),
     #[serde(rename = "expr_int")]

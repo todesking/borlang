@@ -199,6 +199,15 @@ mod test {
     }
 
     #[test]
+    fn obj_spread() {
+        assert_eval_ok!(
+            "{a: 1, ..{}, b: 2, ..{}, ..{a: 11, c: 13}}",
+            object_value! {a: 11, b: 2, c: 13}
+        );
+        assert_eval_err!("{..[]}", EvalError::type_error("Object", array_value![]));
+    }
+
+    #[test]
     fn function() {
         assert_eval_ok!("{let f = fn() => 123; f()}", 123);
         assert_eval_ok!("(fn(x) => x + 1)(100)", 101);
