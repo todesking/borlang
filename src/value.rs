@@ -150,6 +150,16 @@ impl TryFrom<&Value> for bool {
         }
     }
 }
+impl TryFrom<&Value> for usize {
+    type Error = EvalError;
+
+    fn try_from(value: &Value) -> Result<Self, Self::Error> {
+        let value: i32 = value.try_into()?;
+        value
+            .try_into()
+            .map_err(|_| EvalError::cast_error("usize", value))
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AtomValue {

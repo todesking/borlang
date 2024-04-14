@@ -192,16 +192,16 @@ impl Env {
                     }
                     Expr::Index { expr, index } => {
                         let arr = self.eval_expr(expr, local_env)?;
-                        let index: i32 = (&self.eval_expr(index, local_env)?).try_into()?;
+                        let index = (&self.eval_expr(index, local_env)?).try_into()?;
                         let value = self.eval_expr(rhs, local_env)?;
                         arr.use_array_mut(|arr| {
-                            if arr.len() <= index as usize {
+                            if arr.len() <= index {
                                 return Err(EvalError::IndexOutOfBound {
                                     len: arr.len(),
                                     index,
                                 });
                             }
-                            arr[index as usize] = value;
+                            arr[index] = value;
                             Ok(Value::null())
                         })?;
                     }
@@ -253,15 +253,10 @@ impl Env {
     }
 
     fn get_index(&self, value: &Value, index: &Value) -> EvalResult {
-        let index = i32::try_from(index)?;
+        let index: usize = index.try_into()?;
         value.use_array(|values| {
-            if index < 0 {
-                Err(EvalError::IndexOutOfBound {
-                    len: values.len(),
-                    index,
-                })
-            } else if (index as usize) < values.len() {
-                Ok(values[index as usize].clone())
+            if index < values.len() {
+                Ok(values[index].clone())
             } else {
                 Err(EvalError::IndexOutOfBound {
                     len: values.len(),

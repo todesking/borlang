@@ -318,6 +318,7 @@ mod test {
 
         assert_eval_err!("[][[]]", EvalError::type_error("Int", array_value![]));
         assert_eval_err!("[][0]", EvalError::IndexOutOfBound { len: 0, index: 0 });
+        assert_eval_err!("[][-1]", EvalError::cast_error("usize", -1));
     }
 
     #[test]
