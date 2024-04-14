@@ -39,6 +39,7 @@ const common_rules = {
     $.expr_fun,
     $.expr_if,
     $.expr_prop,
+    $.expr_prop_opt,
     $.expr_index,
   ),
   expr_int: _ => /[0-9]+/,
@@ -141,6 +142,11 @@ const common_rules = {
   expr_prop: $ => prec(Prec.prop, seq(
     field('expr', $._expr),
     '.',
+    field('name', $.ident),
+  )),
+  expr_prop_opt: $ => prec(Prec.prop, seq(
+    field('expr', $._expr),
+    '?.',
     field('name', $.ident),
   )),
   expr_index: $ => prec.left(Prec.index, seq(

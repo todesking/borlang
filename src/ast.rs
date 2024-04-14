@@ -97,6 +97,8 @@ pub enum Expr {
     Paren { expr: Box<Expr> },
     #[serde(rename = "expr_prop")]
     Prop { expr: Box<Expr>, name: Ident },
+    #[serde(rename = "expr_prop_opt")]
+    PropOpt { expr: Box<Expr>, name: Ident },
     #[serde(rename = "expr_index")]
     Index { expr: Box<Expr>, index: Box<Expr> },
     #[serde(rename = "expr_binop")]

@@ -51,13 +51,13 @@ impl Value {
 
     pub fn use_array<T, F: FnOnce(&[Value]) -> EvalResult<T>>(&self, f: F) -> EvalResult<T> {
         match self {
-            Value::Atom(_) => Err(EvalError::TypeError("Array".into(), self.clone())),
+            Value::Atom(_) => Err(EvalError::type_error("Array", self.clone())),
             Value::Ref(ref_value) => match &**ref_value {
                 RefValue::Array(arr) => {
                     let arr = arr.borrow();
                     f(&arr)
                 }
-                _ => Err(EvalError::TypeError("Array".into(), self.clone())),
+                _ => Err(EvalError::type_error("Array", self.clone())),
             },
         }
     }
@@ -93,6 +93,10 @@ impl Value {
             },
             _ => Err(EvalError::type_error("Object", self.clone())),
         }
+    }
+
+    pub fn is_null(&self) -> bool {
+        matches!(self, Value::Atom(AtomValue::Null))
     }
 }
 

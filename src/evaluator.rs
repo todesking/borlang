@@ -266,6 +266,14 @@ impl Env {
                 let value = self.eval_expr(expr, local_env)?;
                 self.get_prop(&value, name)
             }
+            Expr::PropOpt { expr, name } => {
+                let value = self.eval_expr(expr, local_env)?;
+                if value.is_null() {
+                    Ok(Value::null())
+                } else {
+                    self.get_prop(&value, name)
+                }
+            }
             Expr::Index { expr, index } => {
                 let value = self.eval_expr(expr, local_env)?;
                 let index = self.eval_expr(index, local_env)?;

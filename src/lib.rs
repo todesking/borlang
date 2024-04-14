@@ -280,6 +280,12 @@ mod test {
     }
 
     #[test]
+    fn optional_chain() {
+        assert_eval_ok!("null?.foo", Value::null());
+        assert_eval_ok!("{foo: 1}?.foo", 1);
+    }
+
+    #[test]
     fn array() {
         assert_eval_ok!("[]", array_value![]);
         assert_eval_ok!(
