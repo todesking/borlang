@@ -38,6 +38,7 @@ const common_rules = {
     $.expr_app,
     $.expr_fun,
     $.expr_if,
+    $.expr_for,
     $.expr_prop,
     $.expr_prop_opt,
     $.expr_index,
@@ -138,6 +139,13 @@ const common_rules = {
       'else',
       field('el', $.expr_block),
     )),
+  ),
+  expr_for: $ => seq(
+    'for',
+    field('name', $.ident),
+    'in',
+    field('target', $._expr),
+    field('body', $.expr_block),
   ),
   expr_prop: $ => prec(Prec.prop, seq(
     field('expr', $._expr),

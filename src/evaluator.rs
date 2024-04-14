@@ -17,11 +17,29 @@ use std::collections::HashMap;
 pub type EvalResult<T = Value> = Result<T, EvalError>;
 pub type IntrinsicFn = dyn Fn(&[Value]) -> EvalResult;
 
+pub struct Names {
+    trait_iterator: Ident,
+    next: Ident,
+    data: Ident,
+    cur: Ident,
+}
+impl Default for Names {
+    fn default() -> Self {
+        Self {
+            trait_iterator: Ident::new("#Iterator"),
+            next: Ident::new("next"),
+            data: Ident::new("data"),
+            cur: Ident::new("cur"),
+        }
+    }
+}
+
 pub struct Env {
     vars: HashMap<Ident, Value>,
     intrinsics: HashMap<Ident, Box<IntrinsicFn>>,
     allow_rebind_global: bool,
     array_proto: ObjectValue,
+    names: Names,
 }
 impl Default for Env {
     fn default() -> Self {
@@ -56,6 +74,7 @@ impl Env {
             intrinsics: Default::default(),
             allow_rebind_global: false,
             array_proto: ObjectValue::new(),
+            names: Default::default(),
         };
         env.register_instrinsic("#array_len", |args| match args {
             [this] => this.use_array(|arr| Ok((arr.len() as i32).into())),
@@ -76,8 +95,53 @@ impl Env {
                 actual: args.len(),
             }),
         });
+
         env.array_proto
             .insert("push".into(), Value::intrinsic("#array_push"));
+        env.array_proto.insert(
+            env.names.trait_iterator.clone(),
+            Value::intrinsic("#array#iterator#new"),
+        );
+
+        env.register_instrinsic("#array#iterator#new", {
+            let next = env.names.next.clone();
+            let data = env.names.data.clone();
+            let cur = env.names.cur.clone();
+            move |args| {
+                EvalError::check_argument_len(1, args.len())?;
+                let this = &args[0];
+                let mut iter = ObjectValue::new();
+                iter.insert(next.clone(), Value::intrinsic("#array#iterator#next"));
+                iter.insert(data.clone(), this.clone());
+                iter.insert(cur.clone(), Value::int(0));
+                Ok(iter.into())
+            }
+        });
+        env.register_instrinsic("#array#iterator#next", {
+            let data = env.names.data.clone();
+            let cur = env.names.cur.clone();
+            move |args| {
+                EvalError::check_argument_len(1, args.len())?;
+                args[0].use_object_mut(|iter| {
+                    let Some(arr) = iter.get(&data) else {
+                        return Err(EvalError::trait_protocol("Array iterator value(data)"));
+                    };
+                    let Some(index) = iter.get(&cur) else {
+                        return Err(EvalError::trait_protocol("Array iterator value(cur)"));
+                    };
+                    let index = index.try_into()?;
+                    let next_value = arr.use_array(|arr| {
+                        if arr.len() <= index {
+                            return Ok(Value::array(vec![]));
+                        }
+                        Ok(Value::array(vec![arr[index].clone()]))
+                    })?;
+                    iter.insert(cur.clone(), Value::try_int(index + 1)?);
+                    Ok(next_value)
+                })
+            }
+        });
+
         env.register_instrinsic("+", binop(|lhs: i32, rhs: i32| Ok(Value::int(lhs + rhs))));
         env.register_instrinsic("-", binop(|lhs: i32, rhs: i32| Ok(Value::int(lhs - rhs))));
         env.register_instrinsic("*", binop(|lhs: i32, rhs: i32| Ok(Value::int(lhs * rhs))));
@@ -259,6 +323,30 @@ impl Env {
                 };
                 Ok(value)
             }
+            Expr::For { name, target, body } => {
+                let target = self.eval_expr(target, local_env)?;
+                let iter_new = self.get_prop(&target, &self.names.trait_iterator)?;
+                let iter = self.eval_app(&iter_new, &[target])?;
+                let args = [iter];
+                loop {
+                    let next = self.get_prop(&args[0], &self.names.next)?;
+                    let next_value = self.eval_app(&next, &args)?;
+                    let next_value = next_value.use_array(|a| match a {
+                        [] => Ok(None),
+                        [v] => Ok(Some(v.clone())),
+                        _ => Err(EvalError::trait_protocol(
+                            "Iterator.next() should return [] or [next_value]",
+                        )),
+                    })?;
+                    let Some(next_value) = next_value else {
+                        break;
+                    };
+                    let env = LocalEnv::extend(local_env.clone());
+                    LocalEnv::bind(&env, name.clone(), next_value.clone())?;
+                    self.eval_expr(body, &Some(env))?;
+                }
+                Ok(Value::null())
+            }
             Expr::Fun { params, expr } => {
                 Ok(Value::fun(params.clone(), expr.clone(), local_env.clone()))
             }
@@ -293,14 +381,8 @@ impl Env {
     fn get_index(&self, value: &Value, index: &Value) -> EvalResult {
         let index: usize = index.try_into()?;
         value.use_array(|values| {
-            if index < values.len() {
-                Ok(values[index].clone())
-            } else {
-                Err(EvalError::IndexOutOfBound {
-                    len: values.len(),
-                    index,
-                })
-            }
+            EvalError::check_array_index(values.len(), index)?;
+            Ok(values[index].clone())
         })
     }
 
@@ -320,14 +402,14 @@ impl Env {
         f: F,
     ) -> EvalResult {
         match value {
-            Value::Atom(_) => todo!(),
+            Value::Atom(_) => f(&ObjectValue::new()),
             Value::Ref(ref_value) => match &**ref_value {
                 RefValue::Object(obj) => {
                     let obj = obj.borrow();
                     f(&obj)
                 }
                 RefValue::Array(_) => f(&self.array_proto),
-                _ => todo!(),
+                _ => f(&ObjectValue::new()),
             },
         }
     }

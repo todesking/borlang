@@ -264,6 +264,12 @@ mod test {
     }
 
     #[test]
+    fn test_for() {
+        assert_eval_ok!(["let a = 0", "for x in [1, 2, 3] { a = a + x }", "a"], 6);
+        assert_eval_err!("for x in 0 {}", EvalError::property_not_found("#Iterator"));
+    }
+
+    #[test]
     fn obj() {
         assert_eval_ok!("{}", object_value! {});
         assert_eval_ok!("{foo: 1, bar: true}", object_value! {foo: 1, bar: true});

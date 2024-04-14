@@ -91,6 +91,12 @@ pub enum Expr {
         th: Box<Expr>,
         el: Option<Box<Expr>>,
     },
+    #[serde(rename = "expr_for")]
+    For {
+        name: Ident,
+        target: Box<Expr>,
+        body: Box<Expr>,
+    },
     #[serde(rename = "expr_fun")]
     Fun { params: Vec<Ident>, expr: Box<Expr> },
     #[serde(rename = "expr_paren")]

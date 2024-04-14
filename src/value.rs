@@ -25,6 +25,11 @@ impl Value {
     pub fn int(v: i32) -> Value {
         v.into()
     }
+    pub fn try_int<N: TryInto<i32>>(n: N) -> EvalResult {
+        n.try_into()
+            .map(Self::int)
+            .map_err(|_| EvalError::NumericRange)
+    }
     pub fn bool(v: bool) -> Value {
         v.into()
     }
@@ -335,6 +340,11 @@ pub struct ObjectValue {
 impl Default for ObjectValue {
     fn default() -> Self {
         Self::new()
+    }
+}
+impl From<ObjectValue> for Value {
+    fn from(value: ObjectValue) -> Self {
+        RefValue::Object(GcCell::new(value)).into()
     }
 }
 
