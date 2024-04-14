@@ -24,6 +24,14 @@ pub enum EvalError {
     IndexOutOfBound { len: usize, index: i32 },
     AssignNotSupported,
 }
+impl EvalError {
+    pub fn name_not_found<S: Into<Ident>>(name: S) -> Self {
+        Self::NameNotFound(name.into())
+    }
+    pub fn type_error<S: Into<String>, V: Into<Value>>(name: S, value: V) -> Self {
+        Self::TypeError(name.into(), value.into())
+    }
+}
 impl Display for EvalError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Debug::fmt(self, f)

@@ -168,6 +168,14 @@ mod test {
             ["let a = [0, 1, 2]", "a[3] = 99"],
             EvalError::IndexOutOfBound { len: 3, index: 3 }
         );
+        assert_eval_err!(
+            ["let a = [0, 1, 2]", "a[n] = 99"],
+            EvalError::name_not_found("n")
+        );
+        assert_eval_err!(
+            ["let a = 0", "a[0] = 99"],
+            EvalError::type_error("Array", 0)
+        );
     }
 
     #[test]
@@ -288,7 +296,7 @@ mod test {
         assert_eval_ok!("[1,2,3][0]", 1);
         assert_eval_ok!("[1,[2,3],4][1][0]", 2);
 
-        assert_eval_err!("[][[]]", EvalError::TypeError("Int".into(), array_value![]));
+        assert_eval_err!("[][[]]", EvalError::type_error("Int", array_value![]));
         assert_eval_err!("[][0]", EvalError::IndexOutOfBound { len: 0, index: 0 });
     }
 
@@ -302,6 +310,6 @@ mod test {
     fn op_unary_minus() {
         assert_eval_ok!("-1", -1);
         assert_eval_ok!("1 + -[1,2,3][1] * 3", -5);
-        assert_eval_err!("-[]", EvalError::TypeError("Int".into(), array_value![]));
+        assert_eval_err!("-[]", EvalError::type_error("Int", array_value![]));
     }
 }
