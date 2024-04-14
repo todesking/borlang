@@ -322,6 +322,15 @@ mod test {
     }
 
     #[test]
+    fn array_spread() {
+        assert_eval_ok!(
+            "[1, ..[], ..[2], 3, ..[4, 5], 6]",
+            array_value![1, 2, 3, 4, 5, 6]
+        );
+        assert_eval_err!("[..0]", EvalError::type_error("Array", 0));
+    }
+
+    #[test]
     fn op_mod() {
         assert_eval_ok!("10 % 5", 0);
         assert_eval_ok!("13 % 5", 3);

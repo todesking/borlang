@@ -1,3 +1,4 @@
+use crate::ast::ArrayItem;
 use crate::ast::Ident;
 use crate::ast::TopTerm;
 use crate::value::AtomValue;
@@ -12,7 +13,7 @@ use crate::Value;
 
 use std::collections::HashMap;
 
-pub type EvalResult = Result<Value, EvalError>;
+pub type EvalResult<T = Value> = Result<T, EvalError>;
 pub type IntrinsicFn = dyn Fn(&[Value]) -> EvalResult;
 
 pub struct Env {
@@ -135,12 +136,21 @@ impl Env {
                 }
                 Ok(Value::object(obj))
             }
-            Expr::Array(items) => Ok(Value::array(
-                items
-                    .iter()
-                    .map(|expr| self.eval_expr(expr, local_env))
-                    .collect::<Result<Vec<_>, _>>()?,
-            )),
+            Expr::Array(items) => {
+                let mut buf = Vec::new();
+                for ArrayItem { spread, expr } in items {
+                    let value = self.eval_expr(expr, local_env)?;
+                    if spread.is_some() {
+                        value.use_array(|arr| {
+                            buf.extend(arr.iter().cloned());
+                            Ok(())
+                        })?;
+                    } else {
+                        buf.push(value);
+                    }
+                }
+                Ok(Value::array(buf))
+            }
             Expr::Var(name) => self.get_var(local_env, name),
             Expr::Paren { expr } => self.eval_expr(expr, local_env),
             Expr::Block { terms, expr } => {

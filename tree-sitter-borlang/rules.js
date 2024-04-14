@@ -86,9 +86,10 @@ const common_rules = {
   )),
   expr_array: $ => seq(
     '[',
-    repsep(field('expr', $._expr), ','),
+    repsep(field('item', $.array_item), ','),
     ']',
   ),
+  array_item: $ => seq(field('spread', optional($.op_spread)), field('expr', $._expr)),
   expr_let: $ => prec(Prec.let, seq(
     'let',
     field('name', $.ident),
@@ -144,6 +145,7 @@ const common_rules = {
   op_mod: _ => '%',
   op_eqeq: _ => '==',
   op_neq: _ => '!=',
+  op_spread: _ => '..',
 }
 
 module.exports.program_grammar = grammar({

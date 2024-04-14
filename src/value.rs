@@ -49,7 +49,7 @@ impl Value {
         RefValue::Array(GcCell::new(v)).into()
     }
 
-    pub fn use_array<F: FnOnce(&[Value]) -> EvalResult>(&self, f: F) -> EvalResult {
+    pub fn use_array<T, F: FnOnce(&[Value]) -> EvalResult<T>>(&self, f: F) -> EvalResult<T> {
         match self {
             Value::Atom(_) => Err(EvalError::TypeError("Array".into(), self.clone())),
             Value::Ref(ref_value) => match &**ref_value {
@@ -61,7 +61,10 @@ impl Value {
             },
         }
     }
-    pub fn use_array_mut<F: FnOnce(&mut Vec<Value>) -> EvalResult>(&self, f: F) -> EvalResult {
+    pub fn use_array_mut<T, F: FnOnce(&mut Vec<Value>) -> EvalResult<T>>(
+        &self,
+        f: F,
+    ) -> EvalResult<T> {
         match self {
             Value::Atom(_) => Err(EvalError::type_error("Array", self.clone())),
             Value::Ref(ref_value) => match &**ref_value {
@@ -70,7 +73,10 @@ impl Value {
             },
         }
     }
-    pub fn use_object_mut<F: FnOnce(&mut ObjectValue) -> EvalResult>(&self, f: F) -> EvalResult {
+    pub fn use_object_mut<T, F: FnOnce(&mut ObjectValue) -> EvalResult<T>>(
+        &self,
+        f: F,
+    ) -> EvalResult<T> {
         match self {
             Value::Ref(ref_value) => match &**ref_value {
                 RefValue::Object(obj) => f(&mut obj.borrow_mut()),

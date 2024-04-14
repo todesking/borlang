@@ -42,11 +42,18 @@ impl Display for Ident {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
+#[serde(rename = "array_item")]
+pub struct ArrayItem {
+    pub spread: Option<()>,
+    pub expr: Box<Expr>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
 pub enum Expr {
     #[serde(rename = "expr_object")]
     Object { name: Vec<Ident>, expr: Vec<Expr> },
     #[serde(rename = "expr_array")]
-    Array(Vec<Expr>),
+    Array(Vec<ArrayItem>),
     #[serde(rename = "expr_int")]
     Int(i32),
     #[serde(rename = "expr_str")]
