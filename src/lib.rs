@@ -179,6 +179,26 @@ mod test {
     }
 
     #[test]
+    fn object_reassign() {
+        assert_eval_ok!(["let o = {}", "o.foo = 1", "o"], object_value! {foo: 1});
+        assert_eval_ok!(
+            ["let o = {foo: 1}", "o.foo = 2", "o"],
+            object_value! {foo: 2}
+        );
+        assert_eval_ok!(
+            ["let o = {foo: 1, bar: 2}", "o.foo = 99", "o"],
+            object_value! {
+                foo: 99,
+                bar: 2
+            }
+        );
+        assert_eval_err!(
+            ["let o = 0", "o.foo = 1"],
+            EvalError::type_error("Object", 0)
+        );
+    }
+
+    #[test]
     fn function() {
         assert_eval_ok!("{let f = fn() => 123; f()}", 123);
         assert_eval_ok!("(fn(x) => x + 1)(100)", 101);

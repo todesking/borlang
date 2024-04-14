@@ -96,8 +96,9 @@ const common_rules = {
     field('expr', $._expr))),
   expr_reassign: $ => prec.left(Prec.reassign, seq(
     field('lhs', choice(
-        $.expr_var,
-        $.expr_index,
+      $.expr_var,
+      $.expr_index,
+      $.expr_prop,
     )),
     '=',
     field('rhs', $._expr),

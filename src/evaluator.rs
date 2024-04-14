@@ -191,10 +191,10 @@ impl Env {
                         self.reassign_var(local_env, name, value)?;
                     }
                     Expr::Index { expr, index } => {
-                        let value = self.eval_expr(rhs, local_env)?;
                         let arr = self.eval_expr(expr, local_env)?;
+                        let index: i32 = (&self.eval_expr(index, local_env)?).try_into()?;
+                        let value = self.eval_expr(rhs, local_env)?;
                         arr.use_array_mut(|arr| {
-                            let index: i32 = (&self.eval_expr(index, local_env)?).try_into()?;
                             if arr.len() <= index as usize {
                                 return Err(EvalError::IndexOutOfBound {
                                     len: arr.len(),
@@ -202,6 +202,14 @@ impl Env {
                                 });
                             }
                             arr[index as usize] = value;
+                            Ok(Value::null())
+                        })?;
+                    }
+                    Expr::Prop { expr, name } => {
+                        let obj = self.eval_expr(expr, local_env)?;
+                        let value = self.eval_expr(rhs, local_env)?;
+                        obj.use_object_mut(|obj| {
+                            obj.insert(name.clone(), value);
                             Ok(Value::null())
                         })?;
                     }
