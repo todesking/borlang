@@ -1,6 +1,10 @@
 use std::error::Error;
 
-use borlang::{parse_expr, Env};
+use borlang::{
+    evaluator::{Module, NullModuleLoader},
+    parse_expr, RuntimeContext,
+};
+use gc::Gc;
 use rustyline::error::ReadlineError;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -31,13 +35,16 @@ fn repl_main() -> Result<i32, Box<dyn Error>> {
 }
 
 struct Repl {
-    env: Env,
+    ctx: RuntimeContext<NullModuleLoader>,
+    module: Gc<Module>,
 }
 
 impl Repl {
     fn new() -> Repl {
-        let mut repl = Repl { env: Env::new() };
-        repl.env.allow_rebind_global(true);
+        let mut ctx = RuntimeContext::new();
+        let module = ctx.new_anonymous_module();
+        let mut repl = Repl { ctx, module };
+        repl.ctx.allow_rebind_global(true);
         repl
     }
     fn handle_input(&mut self, line: &str) {
@@ -58,7 +65,7 @@ impl Repl {
             Err(err) => {
                 println!("Parse error: {:?}", err);
             }
-            Ok(ast) => match self.env.eval_expr(&ast, &None) {
+            Ok(ast) => match self.ctx.eval_expr_in_module(&ast, &self.module) {
                 Ok(value) => {
                     println!("=> {}", value);
                 }

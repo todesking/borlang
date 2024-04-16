@@ -1,5 +1,5 @@
-use crate::ast::Ident;
-
+use crate::evaluator::ModulePath;
+use crate::value::ObjectKey;
 use crate::Value;
 
 use std::error::Error;
@@ -9,18 +9,19 @@ use std::fmt::Display;
 #[derive(Debug, PartialEq, Eq)]
 pub enum EvalError {
     TypeError(String, Value),
-    NameNotFound(Ident),
-    NameDefined(Ident),
-    PropertyNotFound(Ident),
+    NameNotFound(String),
+    NameDefined(String),
+    PropertyNotFound(ObjectKey),
     ArgumentLength { expected: usize, actual: usize },
     IndexOutOfBound { len: usize, index: usize },
     AssignNotSupported,
     CastError(String, Value),
     TraitProtocol(String),
     NumericRange,
+    ModuleNotFound(ModulePath),
 }
 impl EvalError {
-    pub fn name_not_found<S: Into<Ident>>(name: S) -> Self {
+    pub fn name_not_found<S: Into<String>>(name: S) -> Self {
         Self::NameNotFound(name.into())
     }
     pub fn type_error<S: Into<String>, V: Into<Value>>(name: S, value: V) -> Self {
@@ -38,8 +39,8 @@ impl EvalError {
         Self::ArgumentLength { expected, actual }
     }
 
-    pub fn property_not_found<S: Into<String>>(name: S) -> Self {
-        EvalError::PropertyNotFound(name.into().into())
+    pub fn property_not_found(key: ObjectKey) -> Self {
+        EvalError::PropertyNotFound(key)
     }
 
     pub fn check_argument_len(expected: usize, actual: usize) -> Result<(), EvalError> {

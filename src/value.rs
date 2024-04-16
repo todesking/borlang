@@ -1,4 +1,5 @@
 use std::{
+    borrow::Borrow,
     collections::HashMap,
     fmt::{Display, Write},
     rc::Rc,
@@ -6,7 +7,11 @@ use std::{
 
 use gc::{Finalize, Gc, GcCell, Trace};
 
-use crate::{ast::Ident, evaluator::EvalResult, EvalError, Expr};
+use crate::{
+    ast::Ident,
+    evaluator::{EvalResult, Module},
+    EvalError, Expr,
+};
 
 #[derive(Debug, PartialEq, Eq, Clone, Finalize)]
 pub enum Value {
@@ -39,11 +44,17 @@ impl Value {
     pub fn null() -> Value {
         AtomValue::Null.into()
     }
-    pub fn fun(params: Vec<Ident>, body: Box<Expr>, local_env: Option<LocalEnvRef>) -> Value {
+    pub fn fun(
+        params: Vec<Ident>,
+        body: Box<Expr>,
+        local_env: Option<LocalEnvRef>,
+        current_module: Gc<Module>,
+    ) -> Value {
         RefValue::Fun {
             params,
             body,
             local_env,
+            current_module,
         }
         .into()
     }
@@ -125,8 +136,12 @@ impl Display for Value {
                 RefValue::Object(obj) => {
                     obj.borrow().fmt(f)?;
                 }
-                RefValue::Fun { .. } => {
+                RefValue::Fun { current_module, .. } => {
                     f.write_str("#fun")?;
+                    if let Some(ref path) = current_module.path {
+                        f.write_str("@")?;
+                        path.fmt(f)?;
+                    }
                 }
             },
             Value::Atom(atom_value) => match atom_value {
@@ -262,7 +277,7 @@ impl LocalEnv {
     pub fn bind(local_env: &LocalEnvRef, name: Ident, value: Value) -> Result<(), EvalError> {
         let mut values = local_env.values.borrow_mut();
         if values.0.contains_key(&name) {
-            return Err(EvalError::NameDefined(name));
+            return Err(EvalError::NameDefined(name.to_string()));
         }
         values.0.insert(name, value);
         Ok(())
@@ -302,6 +317,7 @@ pub enum RefValue {
         params: Vec<Ident>,
         body: Box<Expr>,
         local_env: Option<LocalEnvRef>,
+        current_module: Gc<Module>,
     },
     Object(GcCell<ObjectValue>),
     Array(GcCell<Vec<Value>>),
@@ -319,8 +335,10 @@ unsafe impl Trace for RefValue {
                 params: _,
                 body: _,
                 local_env,
+                current_module,
             } => {
                 mark(local_env);
+                mark(current_module);
             }
             RefValue::Object(o) => {
                 mark(o);
@@ -332,10 +350,32 @@ unsafe impl Trace for RefValue {
     });
 }
 
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub enum ObjectKey {
+    Sym(Rc<String>),
+    Str(Rc<String>),
+}
+impl ObjectKey {
+    pub fn new_str_from_str<S: Into<String>>(name: S) -> Self {
+        Self::Str(Rc::new(name.into()))
+    }
+}
+impl Display for ObjectKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Str(s) => s.fmt(f),
+            Self::Sym(s) => {
+                f.write_str("#")?;
+                s.fmt(f)
+            }
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Finalize)]
 pub struct ObjectValue {
-    names: Vec<Ident>,
-    values: HashMap<Ident, Value>,
+    names: Vec<ObjectKey>,
+    values: HashMap<ObjectKey, Value>,
 }
 impl Default for ObjectValue {
     fn default() -> Self {
@@ -355,28 +395,31 @@ impl ObjectValue {
             values: HashMap::new(),
         }
     }
-    pub fn insert(&mut self, name: Ident, value: Value) {
+    pub fn insert(&mut self, name: ObjectKey, value: Value) {
         let old = self.values.insert(name.clone(), value);
         if old.is_none() {
             self.names.push(name);
         }
     }
-    pub fn get(&self, name: &Ident) -> Option<&Value> {
+    pub fn get(&self, name: &ObjectKey) -> Option<&Value> {
         self.values.get(name)
     }
-    pub fn iter(&self) -> impl Iterator<Item = (&Ident, &Value)> {
+    pub fn iter(&self) -> impl Iterator<Item = (&ObjectKey, &Value)> {
         ObjectIter {
             values: &self.values,
             names_it: self.names.iter(),
         }
     }
+    pub fn contains_key(&self, key: &ObjectKey) -> bool {
+        self.values.contains_key(key)
+    }
 }
-pub struct ObjectIter<'a, I: Iterator<Item = &'a Ident>> {
+pub struct ObjectIter<'a, I: Iterator<Item = &'a ObjectKey>> {
     names_it: I,
-    values: &'a HashMap<Ident, Value>,
+    values: &'a HashMap<ObjectKey, Value>,
 }
-impl<'a, I: Iterator<Item = &'a Ident>> Iterator for ObjectIter<'a, I> {
-    type Item = (&'a Ident, &'a Value);
+impl<'a, I: Iterator<Item = &'a ObjectKey>> Iterator for ObjectIter<'a, I> {
+    type Item = (&'a ObjectKey, &'a Value);
 
     fn next(&mut self) -> Option<Self::Item> {
         let Some(name) = self.names_it.next() else {
@@ -415,7 +458,11 @@ impl Display for ObjectValue {
 
 #[cfg(test)]
 mod test {
-    use crate::{array_value, object_value};
+    use crate::{
+        array_value,
+        evaluator::{ModuleEnv, ModulePath, NullModuleLoader},
+        object_value,
+    };
 
     use super::*;
 
@@ -447,13 +494,15 @@ mod test {
 
     #[test]
     fn display_fun() {
+        let mut me = ModuleEnv::<NullModuleLoader>::new();
         assert_display!(
             Into::<Value>::into(RefValue::Fun {
                 params: vec![],
                 body: Box::new(Expr::Var("".into())),
-                local_env: None
+                local_env: None,
+                current_module: me.new_module(Some(ModulePath::new("foo.bar"))),
             }),
-            "#fun"
+            "#fun@foo.bar"
         );
     }
 

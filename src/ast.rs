@@ -2,6 +2,8 @@ use regex::Regex;
 use serde::Deserialize;
 use std::{error::Error, fmt::Display, rc::Rc, sync::OnceLock};
 
+use crate::value::ObjectKey;
+
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
 #[serde(rename = "program")]
 pub struct Program {
@@ -16,7 +18,7 @@ pub enum TopTerm {
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Deserialize)]
 #[serde(rename = "ident")]
-pub struct Ident(#[serde(deserialize_with = "deserialize_rc_string")] Rc<String>);
+pub struct Ident(#[serde(deserialize_with = "deserialize_rc_string")] pub Rc<String>);
 fn deserialize_rc_string<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Rc<String>, D::Error> {
@@ -28,6 +30,9 @@ fn deserialize_ident<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Resul
 impl Ident {
     pub fn new<S: Into<String>>(s: S) -> Ident {
         Ident(Rc::new(s.into()))
+    }
+    pub fn to_object_key(&self) -> ObjectKey {
+        ObjectKey::Str(self.0.clone())
     }
 }
 impl<S: Into<String>> From<S> for Ident {

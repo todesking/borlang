@@ -9,7 +9,7 @@ mod parser_impl;
 pub use ast::Expr;
 pub use ast::Program;
 pub use eval_error::EvalError;
-pub use evaluator::Env;
+pub use evaluator::RuntimeContext;
 pub use parser::{parse_expr, parse_program};
 pub use value::Value;
 
@@ -21,14 +21,14 @@ macro_rules! object_value {
         object_value!(@impl obj, $($name : $value),*)
     }};
     (@impl $obj:ident, $name:ident : $value:expr, $($rest_name:ident : $rest_value:expr),*) => {{
-        $obj.insert($crate::ast::Ident::new(stringify!($name).to_owned()), $value.into());
+        $obj.insert($crate::value::ObjectKey::Str(std::rc::Rc::new(stringify!($name).to_owned())), $value.into());
         object_value!(@impl $obj, $($rest_name : $rest_value),*)
     }};
     (@impl $obj:ident, $name:ident : $value:expr) => {
         object_value!(@impl $obj, $name : $value,)
     };
     (@impl $obj:ident,) => {
-        $crate::value::Value::object($obj)
+        $obj
     };
 }
 
@@ -53,6 +53,8 @@ macro_rules! array_value {
 
 #[cfg(test)]
 mod test {
+    use crate::{evaluator::NullModuleLoader, value::ObjectKey};
+
     use super::*;
     use pretty_assertions::assert_eq;
 
@@ -76,15 +78,16 @@ mod test {
             assert_eval_impl!([$actual], $expected, $unwrap);
         }};
         ([$($es:literal),+], $expected:expr, $unwrap:ident) => {
-            let mut env = Env::new();
-            assert_eval_impl!(@env env, [$($es),+], $expected, $unwrap);
+            let mut ctx = RuntimeContext::<evaluator::NullModuleLoader>::new();
+            let module = ctx.new_anonymous_module();
+            assert_eval_impl!(@ctx ctx, module, [$($es),+], $expected, $unwrap);
         };
-        (@env $env:ident, [$e1:literal, $($es:literal),+], $expected:expr, $unwrap:ident) => {
-            $env.eval_expr(&parse_expr($e1).unwrap(), &None).unwrap();
-            assert_eval_impl!(@env $env, [$($es),+], $expected, $unwrap);
+        (@ctx $ctx:ident, $module:ident, [$e1:literal, $($es:literal),+], $expected:expr, $unwrap:ident) => {
+            $ctx.eval_expr_in_module(&parse_expr($e1).unwrap(), &$module).unwrap();
+            assert_eval_impl!(@ctx $ctx, $module, [$($es),+], $expected, $unwrap);
         };
-        (@env $env:ident, [$e1:literal], $expected:expr, $unwrap:ident) => {
-            assert_eq!($env.eval_expr(&parse_expr($e1).unwrap(), &None).$unwrap(), $expected.into());
+        (@ctx $ctx:ident, $module:ident, [$e1:literal], $expected:expr, $unwrap:ident) => {
+            assert_eq!($ctx.eval_expr_in_module(&parse_expr($e1).unwrap(), &$module).$unwrap(), $expected.into());
         };
     }
 
@@ -266,7 +269,10 @@ mod test {
     #[test]
     fn test_for() {
         assert_eval_ok!(["let a = 0", "for x in [1, 2, 3] { a = a + x }", "a"], 6);
-        assert_eval_err!("for x in 0 {}", EvalError::property_not_found("#Iterator"));
+        assert_eval_err!(
+            "for x in 0 {}",
+            EvalError::property_not_found(ObjectKey::new_str_from_str("iterator"))
+        );
     }
 
     #[test]
@@ -280,7 +286,10 @@ mod test {
     }
     #[test]
     fn obj_prop() {
-        assert_eval_err!("{}.foo", EvalError::PropertyNotFound("foo".into()));
+        assert_eval_err!(
+            "{}.foo",
+            EvalError::PropertyNotFound(ObjectKey::new_str_from_str("foo"))
+        );
         assert_eval_ok!("{foo: 123}.foo", 123);
         assert_eval_ok!("{foo: 123, bar: {baz: 999}}.bar.baz", 999);
     }
@@ -302,16 +311,17 @@ mod test {
 
     #[test]
     fn rebind_global() {
-        let mut env = Env::new();
-        env.eval_expr(&parse_expr("let a = 1").unwrap(), &None)
+        let mut rt = RuntimeContext::<NullModuleLoader>::new();
+        let m = rt.new_anonymous_module();
+        rt.eval_expr_in_module(&parse_expr("let a = 1").unwrap(), &m)
             .unwrap();
         assert_eq!(
-            env.eval_expr(&parse_expr("let a = 1").unwrap(), &None),
+            rt.eval_expr_in_module(&parse_expr("let a = 1").unwrap(), &m),
             Err(EvalError::NameDefined("a".into()))
         );
-        env.allow_rebind_global(true);
+        rt.allow_rebind_global(true);
         assert_eq!(
-            env.eval_expr(&parse_expr("let a = 1").unwrap(), &None),
+            rt.eval_expr_in_module(&parse_expr("let a = 1").unwrap(), &m),
             Ok(Value::null()),
         );
     }
