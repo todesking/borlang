@@ -1,16 +1,13 @@
-use std::{
-    borrow::Borrow,
-    collections::HashMap,
-    fmt::{Display, Write},
-    rc::Rc,
-};
-
-use gc::{Finalize, Gc, GcCell, Trace};
-
 use crate::{
     ast::Ident,
     evaluator::{EvalResult, Module},
     EvalError, Expr,
+};
+use gc::{Finalize, Gc, GcCell, Trace};
+use std::{
+    collections::HashMap,
+    fmt::{Display, Write},
+    rc::Rc,
 };
 
 #[derive(Debug, PartialEq, Eq, Clone, Finalize)]

@@ -1,11 +1,6 @@
-use gc::Gc;
-use gc::GcCell;
-use gc::Trace;
-
 use crate::ast::ArrayItem;
 use crate::ast::Ident;
 use crate::ast::ObjItem;
-
 use crate::object_value;
 use crate::value::AtomValue;
 use crate::value::LocalEnv;
@@ -17,10 +12,10 @@ use crate::EvalError;
 use crate::Expr;
 use crate::Program;
 use crate::Value;
-
-use std::borrow::BorrowMut;
+use gc::Gc;
+use gc::GcCell;
+use gc::Trace;
 use std::collections::HashMap;
-
 use std::fmt::Display;
 use std::marker::PhantomData;
 use std::rc::Rc;
@@ -323,11 +318,8 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             .pub_object()
             .use_object(|o| {
                 for (name, value) in o.iter() {
-                    match name {
-                        ObjectKey::Str(name) => {
-                            m.bind(&**name, value.clone(), false, false)?;
-                        }
-                        _ => {}
+                    if let ObjectKey::Str(name) = name {
+                        m.bind(&**name, value.clone(), false, false)?;
                     }
                 }
                 Ok(())
