@@ -11,7 +11,7 @@ use gc::GcCell;
 use gc::Trace;
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::marker::PhantomData;
+
 use std::rc::Rc;
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct ModulePath(String);
@@ -111,20 +111,15 @@ unsafe impl Trace for Module {
 }
 
 pub struct ModuleEnv<Loader: ModuleLoader> {
+    loader: Loader,
     modules: HashMap<ModulePath, Gc<Module>>,
-    _p: PhantomData<Loader>,
-}
-impl<Loader: ModuleLoader> Default for ModuleEnv<Loader> {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl<Loader: ModuleLoader> ModuleEnv<Loader> {
-    pub fn new() -> Self {
+    pub fn new(loader: Loader) -> Self {
         Self {
             modules: HashMap::new(),
-            _p: PhantomData,
+            loader,
         }
     }
 
@@ -142,7 +137,7 @@ impl<Loader: ModuleLoader> ModuleEnv<Loader> {
         if let Some(m) = self.modules.get(&path) {
             Ok(m.clone())
         } else {
-            let program = Loader::load(&path)?;
+            let program = self.loader.load(&path)?;
             let m = Gc::new(Module::new(path.clone()));
             initialize(&m, &program)?;
             self.modules.insert(path, m.clone());
@@ -152,12 +147,12 @@ impl<Loader: ModuleLoader> ModuleEnv<Loader> {
 }
 
 pub trait ModuleLoader {
-    fn load(path: &ModulePath) -> EvalResult<Program>;
+    fn load(&mut self, path: &ModulePath) -> EvalResult<Program>;
 }
 
 pub struct NullModuleLoader;
 impl ModuleLoader for NullModuleLoader {
-    fn load(path: &ModulePath) -> EvalResult<Program> {
+    fn load(&mut self, path: &ModulePath) -> EvalResult<Program> {
         Err(EvalError::ModuleNotFound(path.clone()))
     }
 }

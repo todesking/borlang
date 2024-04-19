@@ -31,14 +31,9 @@ pub struct RuntimeContext<Loader: ModuleLoader> {
     array_proto: ObjectValue,
     prelude: Gc<Module>,
 }
-impl<L: ModuleLoader> Default for RuntimeContext<L> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl<L: ModuleLoader> RuntimeContext<L> {
-    pub fn new() -> Self {
+    pub fn new(loader: L) -> Self {
         let mut intrinsics = HashMap::<String, fn(&[Value]) -> EvalResult>::new();
         macro_rules! intrinsic {
             ($name:ident, $args:ident, $body:expr) => {{
@@ -77,7 +72,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             })
         };
 
-        let mut module_env = ModuleEnv::new();
+        let mut module_env = ModuleEnv::new(loader);
         let prelude = module_env.new_module(ModulePath::new("std.prelude"));
         prelude
             .bind("true", Value::bool(true), true, false)

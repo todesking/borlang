@@ -485,7 +485,7 @@ mod test {
 
     #[test]
     fn display_fun() {
-        let mut me = ModuleEnv::<NullModuleLoader>::new();
+        let mut me = ModuleEnv::new(NullModuleLoader);
         assert_display!(
             Into::<Value>::into(RefValue::Fun {
                 params: vec![],

@@ -56,7 +56,7 @@ macro_rules! array_value {
 
 #[cfg(test)]
 mod test {
-    use crate::module::ModulePath;
+    use crate::module::{ModulePath, NullModuleLoader};
     use crate::value::ObjectKey;
 
     use super::*;
@@ -82,7 +82,7 @@ mod test {
             assert_eval_impl!([$actual], $expected, $unwrap);
         }};
         ([$($es:literal),+], $expected:expr, $unwrap:ident) => {
-            let mut ctx = RuntimeContext::<crate::module::NullModuleLoader>::new();
+            let mut ctx = RuntimeContext::new(crate::module::NullModuleLoader);
             let module = ctx.new_module(crate::module::ModulePath::new("__test__"));
             assert_eval_impl!(@ctx ctx, module, [$($es),+], $expected, $unwrap);
         };
@@ -315,7 +315,7 @@ mod test {
 
     #[test]
     fn rebind_global() {
-        let mut rt = RuntimeContext::<crate::module::NullModuleLoader>::new();
+        let mut rt = RuntimeContext::new(NullModuleLoader);
         let m = rt.new_module(ModulePath::new("__test__"));
         rt.eval_expr_in_module(&parse_expr("let a = 1").unwrap(), &m)
             .unwrap();
