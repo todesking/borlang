@@ -190,6 +190,19 @@ impl TryFrom<&Value> for usize {
             .map_err(|_| EvalError::cast_error("usize", value))
     }
 }
+impl TryFrom<&Value> for String {
+    type Error = EvalError;
+
+    fn try_from(value: &Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::Atom(a) => match a {
+                AtomValue::Str(s) => Ok((**s).clone()),
+                _ => Err(EvalError::type_error("String", value.clone())),
+            },
+            _ => Err(EvalError::type_error("String", value.clone())),
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AtomValue {

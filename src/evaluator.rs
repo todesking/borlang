@@ -22,6 +22,7 @@ use crate::Program;
 use crate::Value;
 use gc::Gc;
 
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -92,6 +93,11 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             array_proto,
         };
         register_intrinsics(&mut rt);
+
+        let module = rt.new_module(ModulePath::new("std.internal")).unwrap();
+        module
+            .bind("intrinsic", Value::intrinsic("intrinsic"), true, false)
+            .unwrap();
         rt
     }
 
@@ -101,7 +107,10 @@ impl<L: ModuleLoader> RuntimeContext<L> {
         f: fn(&[Value]) -> EvalResult,
     ) -> Value {
         let name = name.into();
-        self.intrinsics.insert(name.clone(), f);
+        let prev = self.intrinsics.insert(name.clone(), f);
+        if prev.is_some() {
+            panic!("Intrinsic duplicated: {name}");
+        }
         Value::intrinsic(name)
     }
 

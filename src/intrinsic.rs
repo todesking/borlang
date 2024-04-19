@@ -74,4 +74,9 @@ pub fn register_intrinsics<L: ModuleLoader>(rt: &mut RuntimeContext<L>) {
         let v: i32 = (&args[0]).try_into()?;
         Ok((-v).into())
     });
+
+    intrinsic!(intrinsic, args, {
+        EvalError::check_argument_len(1, args.len())?;
+        Ok(Value::intrinsic(String::try_from(&args[0])?))
+    });
 }
