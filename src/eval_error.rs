@@ -1,24 +1,32 @@
-use crate::module::ModulePath;
+use crate::module::LoadError;
+
 use crate::value::ObjectKey;
 use crate::Value;
 
-use std::error::Error;
 use std::fmt::Debug;
-use std::fmt::Display;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, thiserror::Error)]
 pub enum EvalError {
+    #[error("Type error: expected {0}, actual={1}")]
     TypeError(String, Value),
+    #[error("Name not found: {0}")]
     NameNotFound(String),
+    #[error("Already defined: {0}")]
     NameDefined(String),
+    #[error("Property not found: {0}")]
     PropertyNotFound(ObjectKey),
+    #[error("Invalid argument length: expected={expected}, actual={actual}")]
     ArgumentLength { expected: usize, actual: usize },
+    #[error("Index out of bound: len={len}, index={index}")]
     IndexOutOfBound { len: usize, index: usize },
+    #[error("Can't assign")]
     AssignNotSupported,
+    #[error("Can't cast to {0}: {1}")]
     CastError(String, Value),
-    TraitProtocol(String),
+    #[error("Numeric range error")]
     NumericRange,
-    ModuleNotFound(ModulePath),
+    #[error(transparent)]
+    LoadError(LoadError),
 }
 impl EvalError {
     pub fn name_not_found<S: Into<String>>(name: S) -> Self {
@@ -29,10 +37,6 @@ impl EvalError {
     }
     pub fn cast_error<S: Into<String>, V: Into<Value>>(name: S, value: V) -> Self {
         Self::CastError(name.into(), value.into())
-    }
-
-    pub fn trait_protocol<S: Into<String>>(msg: S) -> EvalError {
-        Self::TraitProtocol(msg.into())
     }
 
     pub fn argument_length(expected: usize, actual: usize) -> EvalError {
@@ -57,9 +61,3 @@ impl EvalError {
         Ok(())
     }
 }
-impl Display for EvalError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Debug::fmt(self, f)
-    }
-}
-impl Error for EvalError {}

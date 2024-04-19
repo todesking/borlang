@@ -288,9 +288,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                     let next_value = next_value.use_array(|a| match a {
                         [] => Ok(None),
                         [v] => Ok(Some(v.clone())),
-                        _ => Err(EvalError::trait_protocol(
-                            "Iterator.next() should return [] or [next_value]",
-                        )),
+                        _ => Err(EvalError::type_error("[] | [T]", next_value.clone())),
                     })?;
                     let Some(next_value) = next_value else {
                         break;

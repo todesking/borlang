@@ -12,6 +12,7 @@ rustyline = "13.0.0"
 tree-sitter = "0.20.10"
 serde_tree_sitter = {git = "https://github.com/todesking/serde_tree_sitter"}
 serde = {version = "1.0.197", features = ["derive"]}
+thiserror = "1.0.58"
 
 [build-dependencies]
 cc="*"

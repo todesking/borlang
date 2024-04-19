@@ -16,10 +16,10 @@ pub fn register_intrinsics<L: ModuleLoader>(rt: &mut RuntimeContext<L>) {
         EvalError::check_argument_len(1, args.len())?;
         args[0].use_object_mut(|iter| {
             let Some(arr) = iter.get(&ObjectKey::new_str_from_str("data")) else {
-                return Err(EvalError::trait_protocol("Array iterator value(data)"));
+                return Err(EvalError::type_error("Iterator.data", args[0].clone()));
             };
             let Some(index) = iter.get(&ObjectKey::new_str_from_str("cur")) else {
-                return Err(EvalError::trait_protocol("Array iterator value(cur)"));
+                return Err(EvalError::type_error("Iterator.index", args[0].clone()));
             };
             let index = index.try_into()?;
             let next_value = arr.use_array(|arr| {

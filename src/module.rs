@@ -1,3 +1,5 @@
+use crate::parse_program;
+use crate::parser::ParseError;
 use crate::value::ObjectKey;
 use crate::value::ObjectValue;
 
@@ -12,12 +14,18 @@ use gc::Trace;
 use std::collections::HashMap;
 use std::fmt::Display;
 
+use std::io::Read;
+use std::path::PathBuf;
 use std::rc::Rc;
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct ModulePath(String);
 impl ModulePath {
     pub fn new<S: Into<String>>(s: S) -> Self {
         Self(s.into())
+    }
+
+    fn parts_iter(&self) -> impl Iterator<Item = &str> {
+        self.0.split('/')
     }
 }
 impl Display for ModulePath {
@@ -137,7 +145,7 @@ impl<Loader: ModuleLoader> ModuleEnv<Loader> {
         if let Some(m) = self.modules.get(&path) {
             Ok(m.clone())
         } else {
-            let program = self.loader.load(&path)?;
+            let program = self.loader.load(&path).map_err(EvalError::LoadError)?;
             let m = Gc::new(Module::new(path.clone()));
             initialize(&m, &program)?;
             self.modules.insert(path, m.clone());
@@ -146,13 +154,110 @@ impl<Loader: ModuleLoader> ModuleEnv<Loader> {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum LoadError {
+    #[error("Module `{0}` not found")]
+    NotFound(ModulePath),
+    #[error(transparent)]
+    ParseError(ParseError),
+    #[error(transparent)]
+    IoError(std::io::Error),
+}
+impl PartialEq for LoadError {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Self::IoError(_) => false,
+            Self::ParseError(e1) => match other {
+                Self::ParseError(e2) => e1 == e2,
+                _ => false,
+            },
+            Self::NotFound(m1) => match other {
+                Self::NotFound(m2) => m1 == m2,
+                _ => false,
+            },
+        }
+    }
+}
+
 pub trait ModuleLoader {
-    fn load(&mut self, path: &ModulePath) -> EvalResult<Program>;
+    fn load(&mut self, path: &ModulePath) -> Result<Program, LoadError>;
 }
 
 pub struct NullModuleLoader;
 impl ModuleLoader for NullModuleLoader {
-    fn load(&mut self, path: &ModulePath) -> EvalResult<Program> {
-        Err(EvalError::ModuleNotFound(path.clone()))
+    fn load(&mut self, path: &ModulePath) -> Result<Program, LoadError> {
+        Err(LoadError::NotFound(path.clone()))
+    }
+}
+
+pub struct FsModuleLoader {
+    paths: Vec<PathBuf>,
+}
+impl FsModuleLoader {
+    pub fn new(paths: Vec<PathBuf>) -> Self {
+        Self { paths }
+    }
+}
+impl ModuleLoader for FsModuleLoader {
+    fn load(&mut self, path: &ModulePath) -> Result<Program, LoadError> {
+        let mut rel_path = PathBuf::new();
+        for p in path.parts_iter() {
+            rel_path.push(p);
+        }
+        rel_path.set_extension("borlang");
+
+        for root in &self.paths {
+            match std::fs::File::open(root.join(&rel_path)) {
+                Ok(mut file) => {
+                    let mut src = String::new();
+                    let _size = file.read_to_string(&mut src).map_err(LoadError::IoError)?;
+                    return parse_program(&src).map_err(LoadError::ParseError);
+                }
+                Err(err) => match err.kind() {
+                    std::io::ErrorKind::NotFound => continue,
+                    _ => {
+                        return Err(LoadError::IoError(err));
+                    }
+                },
+            }
+        }
+        Err(LoadError::NotFound(path.clone()))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+
+    #[test]
+    fn test_fs_empty_root() {
+        let mut loader = FsModuleLoader::new([].to_vec());
+        assert_eq!(
+            loader.load(&ModulePath::new("aaa")),
+            Err(LoadError::NotFound(ModulePath::new("aaa"))),
+        );
+    }
+
+    #[test]
+    fn test_fs() {
+        let mut loader = FsModuleLoader::new(vec![
+            PathBuf::from_iter(["test_data", "fs_module_loader"].iter()),
+        ]);
+
+        assert_eq!(
+            loader.load(&ModulePath::new("empty")),
+            Ok(crate::ast::Program{top_terms: vec![]})
+        );
+        assert_eq!(
+            loader.load(&ModulePath::new("not_found")),
+            Err(LoadError::NotFound(ModulePath::new("not_found"))),
+        );
+        assert!(
+            matches!(
+                loader.load(&ModulePath::new("syntax_error")),
+                Err(LoadError::ParseError(_)),
+            )
+        );
     }
 }

@@ -60,6 +60,7 @@ dependencies = [
  "rustyline",
  "serde",
  "serde_tree_sitter",
+ "thiserror",
  "tree-sitter",
 ]
 
