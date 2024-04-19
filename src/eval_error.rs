@@ -17,6 +17,8 @@ pub enum EvalError {
     PropertyNotFound(ObjectKey),
     #[error("Invalid argument length: expected={expected}, actual={actual}")]
     ArgumentLength { expected: usize, actual: usize },
+    #[error("Invalid array length: expected={expected}, actual={actual}")]
+    ArrayLength { expected: usize, actual: usize },
     #[error("Index out of bound: len={len}, index={index}")]
     IndexOutOfBound { len: usize, index: usize },
     #[error("Can't assign")]
@@ -45,6 +47,10 @@ impl EvalError {
 
     pub fn property_not_found(key: ObjectKey) -> Self {
         EvalError::PropertyNotFound(key)
+    }
+
+    pub fn array_length(expected: usize, actual: usize) -> Self {
+        EvalError::ArrayLength { expected, actual }
     }
 
     pub fn check_argument_len(expected: usize, actual: usize) -> Result<(), EvalError> {

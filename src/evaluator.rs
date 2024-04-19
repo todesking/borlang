@@ -1,6 +1,7 @@
 use crate::ast::ArrayItem;
 use crate::ast::ExprStr;
 use crate::ast::Ident;
+use crate::ast::LetPattern;
 use crate::ast::ObjItem;
 use crate::ast::TopTerm;
 use crate::intrinsic::register_intrinsics;
@@ -179,8 +180,9 @@ impl<L: ModuleLoader> RuntimeContext<L> {
         match top_term {
             TopTerm::Let { is_pub, name, expr } => {
                 let value = self.eval_expr_in_module(expr, module)?;
-                module.bind(&*name.0, value, is_pub.is_some(), self.allow_rebind_global)?;
-                Ok(())
+                Self::let_bind(name, value, |n, v| {
+                    module.bind(&*n.0, v, is_pub.is_some(), self.allow_rebind_global)
+                })
             }
         }
     }
@@ -290,7 +292,9 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             },
             Expr::Let { name, expr } => {
                 let value = self.eval_expr(expr, local_env, current_module)?;
-                self.bind_var(local_env, current_module, name.clone(), value)?;
+                Self::let_bind(name, value, |n, v| {
+                    self.bind_var(local_env, current_module, n, v)
+                })?;
                 Ok(Value::null())
             }
             Expr::Reassign { lhs, rhs } => {
@@ -389,6 +393,70 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 Ok(module.pub_object().clone())
             }
         }
+    }
+
+    fn let_bind<F: FnMut(Ident, Value) -> EvalResult<()>>(
+        name: &LetPattern,
+        value: Value,
+        mut bind: F,
+    ) -> EvalResult<()> {
+        match name {
+            LetPattern::Name(name) => {
+                bind(name.clone(), value)?;
+            }
+            LetPattern::Obj { name, rest } => {
+                value.use_object(|o| {
+                    for n in name {
+                        if !o.contains_key(&ObjectKey::new_str_from_str(&*n.0)) {
+                            return Err(EvalError::property_not_found(
+                                ObjectKey::new_str_from_str(&*n.0),
+                            ));
+                        }
+                    }
+                    for n in name {
+                        bind(
+                            n.clone(),
+                            o.get(&ObjectKey::new_str_from_str(&*n.0)).unwrap().clone(),
+                        )?;
+                    }
+                    if let Some(rest) = rest {
+                        let mut rest_obj = ObjectValue::new();
+                        for (k, v) in o.iter() {
+                            match k {
+                                ObjectKey::Str(k) => {
+                                    if name.iter().any(|n| &n.0 == k) {
+                                        continue;
+                                    }
+                                }
+                                ObjectKey::Sym(_) => {}
+                            }
+                            rest_obj.insert(k.clone(), v.clone())
+                        }
+                        bind(rest.clone(), rest_obj.into())?;
+                    }
+                    Ok(())
+                })?;
+            }
+            LetPattern::Arr { name, rest } => {
+                value.use_array(|arr| {
+                    if rest.is_some() && arr.len() < name.len() {
+                        return Err(EvalError::array_length(name.len(), arr.len()));
+                    }
+                    if rest.is_none() && arr.len() != name.len() {
+                        return Err(EvalError::array_length(name.len(), arr.len()));
+                    }
+                    for (n, v) in name.iter().zip(arr) {
+                        bind(n.clone(), v.clone())?;
+                    }
+                    if let Some(rest) = rest {
+                        let rest_value = arr[name.len()..].to_vec();
+                        bind(rest.clone(), Value::array(rest_value))?;
+                    }
+                    Ok(())
+                })?;
+            }
+        }
+        Ok(())
     }
 
     fn eval_app(&mut self, f: &Value, args: &[Value]) -> EvalResult {

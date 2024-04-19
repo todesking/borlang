@@ -428,4 +428,42 @@ mod test {
             Value::bool(true)
         );
     }
+
+    #[test]
+    fn let_obj() {
+        assert_eval_ok!(["let o = {a: 1, b: 2, c: 3}", "let {} = o"], Value::null());
+        assert_eval_ok!(
+            ["let o = {a: 1, b: 2, c: 3}", "let {a, b} = o", "[a, b]"],
+            array_value![1, 2]
+        );
+        assert_eval_ok!(
+            [
+                "let o = {a: 1, b: 2, c: 3}",
+                "let {a, ..rest} = o",
+                "[a, rest]"
+            ],
+            array_value![1, object_value! {b: 2, c: 3}]
+        );
+        assert_eval_ok!(
+            ["let o = {a: 1, b: 2, c: 3}", "let {..rest} = {}", "rest"],
+            object_value! {}
+        );
+        assert_eval_err!(
+            ["let o = {a: 1, b: 2, c: 3}", "let {z} = o"],
+            EvalError::property_not_found(ObjectKey::new_str_from_str("z"))
+        );
+        assert_eval_err!("let {} = 1", EvalError::type_error("Object", 1));
+    }
+    #[test]
+    fn let_arr() {
+        assert_eval_ok!("let [] = []", Value::null());
+        assert_eval_ok!(["let [a, b] = [1, 2]", "[b, a]"], array_value![2, 1]);
+        assert_eval_err!(["let [] = [1, 2]"], EvalError::array_length(0, 2));
+        assert_eval_err!("let [] = 1", EvalError::type_error("Array", 1));
+        assert_eval_ok!(["let [..rest] = [1, 2]", "rest"], array_value![1, 2]);
+        assert_eval_ok!(
+            ["let [a, b, ..rest] = [1, 2, 3, 4]", "[a, b, rest]"],
+            array_value![1, 2, array_value![3, 4]]
+        );
+    }
 }

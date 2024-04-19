@@ -106,9 +106,23 @@ const common_rules = {
   array_item: $ => seq(field('spread', optional($.op_spread)), field('expr', $._expr)),
   expr_let: $ => prec(Prec.let, seq(
     'let',
-    field('name', $.ident),
+    field('name', $._let_pattern),
     '=',
     field('expr', $._expr))),
+  _let_pattern: $ => choice($.let_pattern_obj, $.let_pattern_arr, $.let_pattern_name),
+  let_pattern_obj: $ => seq(
+    '{',
+    repsep(field('name', $.ident), ','),
+    optional(seq('..', field('rest', $.ident))),
+    '}',
+  ),
+  let_pattern_arr: $ => seq(
+    '[',
+    repsep(field('name', $.ident), ','),
+    optional(seq('..', field('rest', $.ident))),
+    ']',
+  ),
+  let_pattern_name: $ => $.ident,
   expr_reassign: $ => prec.left(Prec.reassign, seq(
     field('lhs', choice(
       $.expr_var,
@@ -187,7 +201,7 @@ module.exports.program_grammar = grammar({
     top_term_let: $ => seq(
       optional(field('pub', 'pub')),
       'let',
-      field('name', $.ident),
+      field('name', $._let_pattern),
       '=',
       field('expr', $._expr),
       ';'),

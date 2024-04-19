@@ -16,7 +16,7 @@ pub enum TopTerm {
     Let {
         #[serde(rename = "pub")]
         is_pub: Option<()>,
-        name: Ident,
+        name: LetPattern,
         expr: Expr,
     },
 }
@@ -92,7 +92,7 @@ pub enum Expr {
         expr: Option<Box<Expr>>,
     },
     #[serde(rename = "expr_let")]
-    Let { name: Ident, expr: Box<Expr> },
+    Let { name: LetPattern, expr: Box<Expr> },
     #[serde(rename = "expr_reassign")]
     Reassign { lhs: Box<Expr>, rhs: Box<Expr> },
     #[serde(rename = "expr_if")]
@@ -134,6 +134,22 @@ pub enum Expr {
 pub struct ExprStr {
     #[serde(deserialize_with = "deserialize_string_content_opt")]
     pub content: Rc<String>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
+pub enum LetPattern {
+    #[serde(rename = "let_pattern_name")]
+    Name(Ident),
+    #[serde(rename = "let_pattern_obj")]
+    Obj {
+        name: Vec<Ident>,
+        rest: Option<Ident>,
+    },
+    #[serde(rename = "let_pattern_arr")]
+    Arr {
+        name: Vec<Ident>,
+        rest: Option<Ident>,
+    },
 }
 
 fn deserialize_string_content_opt<'de, D: serde::Deserializer<'de>>(
