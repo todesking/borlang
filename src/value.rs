@@ -195,10 +195,7 @@ impl TryFrom<&Value> for String {
 
     fn try_from(value: &Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Atom(a) => match a {
-                AtomValue::Str(s) => Ok((**s).clone()),
-                _ => Err(EvalError::type_error("String", value.clone())),
-            },
+            Value::Atom(AtomValue::Str(s)) => Ok((**s).clone()),
             _ => Err(EvalError::type_error("String", value.clone())),
         }
     }

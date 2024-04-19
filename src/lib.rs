@@ -61,9 +61,10 @@ mod test {
     use crate::module::{ModulePath, NullModuleLoader};
     use crate::value::ObjectKey;
 
-    use self::module::FsModuleLoader;
+    use self::module::{FsModuleLoader, Module};
 
     use super::*;
+    use gc::Gc;
     use pretty_assertions::assert_eq;
 
     #[ctor::ctor]
@@ -97,6 +98,14 @@ mod test {
         (@ctx $ctx:ident, $module:ident, [$e1:literal], $expected:expr, $unwrap:ident) => {
             assert_eq!($ctx.eval_expr_in_module(&parse_expr($e1).unwrap(), &$module).$unwrap(), $expected.into());
         };
+    }
+
+    fn new_rt() -> (RuntimeContext<FsModuleLoader>, Gc<Module>) {
+        let mut ctx = RuntimeContext::with_paths(vec!["lib"]);
+        let module = ctx
+            .new_module(crate::module::ModulePath::new("__test__"))
+            .unwrap();
+        (ctx, module)
     }
 
     #[test]
@@ -402,5 +411,21 @@ mod test {
             Ok(Value::int(2))
         );
         assert_eq!(m.pub_object(), &Value::from(object_value! {a: 1}));
+    }
+
+    #[test]
+    fn import() {
+        let (mut rt, m) = new_rt();
+
+        rt.eval_program_in_module(
+            &parse_program(r#"let prelude = import "std/prelude";"#).unwrap(),
+            &m,
+        )
+        .unwrap();
+        assert_eq!(
+            rt.eval_expr_in_module(&parse_expr("prelude.true").unwrap(), &m)
+                .unwrap(),
+            Value::bool(true)
+        );
     }
 }

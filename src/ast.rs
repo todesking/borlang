@@ -126,6 +126,14 @@ pub enum Expr {
     },
     #[serde(rename = "expr_neg")]
     Negate { expr: Box<Expr> },
+    #[serde(rename = "expr_import")]
+    Import(ExprStr),
+}
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
+#[serde(rename = "expr_str")]
+pub struct ExprStr {
+    #[serde(deserialize_with = "deserialize_string_content_opt")]
+    pub content: Rc<String>,
 }
 
 fn deserialize_string_content_opt<'de, D: serde::Deserializer<'de>>(

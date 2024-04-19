@@ -42,6 +42,7 @@ const common_rules = {
     $.expr_prop,
     $.expr_prop_opt,
     $.expr_index,
+    $.expr_import,
   ),
   expr_int: _ => /[0-9]+/,
   expr_str: $ => seq(
@@ -163,6 +164,10 @@ const common_rules = {
     field('index', $._expr),
     ']',
   )),
+  expr_import: $ => seq(
+    'import',
+    $.expr_str
+  ),
   ident: _ => /[A-Za-z_][a-z0-9_]*/,
   op_plus: _ => '+',
   op_minus: _ => '-',

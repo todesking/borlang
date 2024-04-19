@@ -1,4 +1,5 @@
 use crate::ast::ArrayItem;
+use crate::ast::ExprStr;
 use crate::ast::Ident;
 use crate::ast::ObjItem;
 use crate::ast::TopTerm;
@@ -22,7 +23,6 @@ use crate::Program;
 use crate::Value;
 use gc::Gc;
 
-use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -383,6 +383,10 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 let value = self.eval_expr(expr, local_env, current_module)?;
                 let index = self.eval_expr(index, local_env, current_module)?;
                 self.get_index(&value, &index)
+            }
+            Expr::Import(ExprStr { content }) => {
+                let module = self.load_module(&ModulePath::new((**content).to_owned()))?;
+                Ok(module.pub_object().clone())
             }
         }
     }
