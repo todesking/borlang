@@ -42,7 +42,7 @@ struct Repl {
 impl Repl {
     fn new() -> Repl {
         let mut ctx = RuntimeContext::new(NullModuleLoader);
-        let module = ctx.new_module(ModulePath::new("__repl__"));
+        let module = ctx.new_module(ModulePath::new("__repl__")).unwrap();
         let mut repl = Repl { ctx, module };
         repl.ctx.allow_rebind_global(true);
         repl

@@ -56,8 +56,12 @@ macro_rules! array_value {
 
 #[cfg(test)]
 mod test {
+    use std::path::PathBuf;
+
     use crate::module::{ModulePath, NullModuleLoader};
     use crate::value::ObjectKey;
+
+    use self::module::FsModuleLoader;
 
     use super::*;
     use pretty_assertions::assert_eq;
@@ -82,8 +86,8 @@ mod test {
             assert_eval_impl!([$actual], $expected, $unwrap);
         }};
         ([$($es:literal),+], $expected:expr, $unwrap:ident) => {
-            let mut ctx = RuntimeContext::new(crate::module::NullModuleLoader);
-            let module = ctx.new_module(crate::module::ModulePath::new("__test__"));
+            let mut ctx = RuntimeContext::with_paths(vec!["lib"]);
+            let module = ctx.new_module(crate::module::ModulePath::new("__test__")).unwrap();
             assert_eval_impl!(@ctx ctx, module, [$($es),+], $expected, $unwrap);
         };
         (@ctx $ctx:ident, $module:ident, [$e1:literal, $($es:literal),+], $expected:expr, $unwrap:ident) => {
@@ -316,7 +320,7 @@ mod test {
     #[test]
     fn rebind_global() {
         let mut rt = RuntimeContext::new(NullModuleLoader);
-        let m = rt.new_module(ModulePath::new("__test__"));
+        let m = rt.new_module(ModulePath::new("__test__")).unwrap();
         rt.eval_expr_in_module(&parse_expr("let a = 1").unwrap(), &m)
             .unwrap();
         assert_eq!(
@@ -381,5 +385,22 @@ mod test {
         assert_eval_ok!("-1", -1);
         assert_eval_ok!("1 + -[1,2,3][1] * 3", -5);
         assert_eval_err!("-[]", EvalError::type_error("Int", array_value![]));
+    }
+
+    #[test]
+    fn top_term_let() {
+        let mut rt = RuntimeContext::new(FsModuleLoader::new(vec![PathBuf::from("lib")]));
+        let m = rt.new_module(ModulePath::new("__test__")).unwrap();
+        rt.eval_program_in_module(&parse_program("pub let a = 1; let b = 2;").unwrap(), &m)
+            .unwrap();
+        assert_eq!(
+            rt.eval_expr_in_module(&parse_expr("a").unwrap(), &m),
+            Ok(Value::int(1))
+        );
+        assert_eq!(
+            rt.eval_expr_in_module(&parse_expr("b").unwrap(), &m),
+            Ok(Value::int(2))
+        );
+        assert_eq!(m.pub_object(), &Value::from(object_value! {a: 1}));
     }
 }

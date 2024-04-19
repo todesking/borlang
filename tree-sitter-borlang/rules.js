@@ -180,6 +180,7 @@ module.exports.program_grammar = grammar({
     program: $ => field('top_terms', repeat($._top_term)),
     _top_term: $ => choice($.top_term_let),
     top_term_let: $ => seq(
+      optional(field('pub', 'pub')),
       'let',
       field('name', $.ident),
       '=',

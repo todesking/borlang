@@ -28,6 +28,11 @@ impl ModulePath {
         self.0.split('/')
     }
 }
+impl AsRef<str> for ModulePath {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
 impl Display for ModulePath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0)
@@ -186,6 +191,9 @@ pub trait ModuleLoader {
 pub struct NullModuleLoader;
 impl ModuleLoader for NullModuleLoader {
     fn load(&mut self, path: &ModulePath) -> Result<Program, LoadError> {
+        if path.as_ref() == "std/prelude" {
+            return Ok(Program { top_terms: vec![] });
+        }
         Err(LoadError::NotFound(path.clone()))
     }
 }
@@ -229,7 +237,6 @@ impl ModuleLoader for FsModuleLoader {
 mod test {
     use super::*;
 
-
     #[test]
     fn test_fs_empty_root() {
         let mut loader = FsModuleLoader::new([].to_vec());
@@ -241,23 +248,21 @@ mod test {
 
     #[test]
     fn test_fs() {
-        let mut loader = FsModuleLoader::new(vec![
-            PathBuf::from_iter(["test_data", "fs_module_loader"].iter()),
-        ]);
+        let mut loader = FsModuleLoader::new(vec![PathBuf::from_iter(
+            ["test_data", "fs_module_loader"].iter(),
+        )]);
 
         assert_eq!(
             loader.load(&ModulePath::new("empty")),
-            Ok(crate::ast::Program{top_terms: vec![]})
+            Ok(crate::ast::Program { top_terms: vec![] })
         );
         assert_eq!(
             loader.load(&ModulePath::new("not_found")),
             Err(LoadError::NotFound(ModulePath::new("not_found"))),
         );
-        assert!(
-            matches!(
-                loader.load(&ModulePath::new("syntax_error")),
-                Err(LoadError::ParseError(_)),
-            )
-        );
+        assert!(matches!(
+            loader.load(&ModulePath::new("syntax_error")),
+            Err(LoadError::ParseError(_)),
+        ));
     }
 }

@@ -1,0 +1,3 @@
+pub let true = 1 == 1;
+pub let false = 1 != 1;
+pub let null = {1;};

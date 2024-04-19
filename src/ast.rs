@@ -11,9 +11,14 @@ pub struct Program {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
-#[serde(rename = "top_term")]
 pub enum TopTerm {
-    Let { name: Ident, expr: Expr },
+    #[serde(rename = "top_term_let")]
+    Let {
+        #[serde(rename = "pub")]
+        is_pub: Option<()>,
+        name: Ident,
+        expr: Expr,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Deserialize)]

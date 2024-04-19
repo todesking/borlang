@@ -1,9 +1,11 @@
 use crate::ast::ArrayItem;
 use crate::ast::Ident;
 use crate::ast::ObjItem;
+use crate::ast::TopTerm;
 use crate::intrinsic::register_intrinsics;
+use crate::module::FsModuleLoader;
 use crate::module::Module;
-use crate::module::ModuleEnv;
+
 use crate::module::ModuleLoader;
 use crate::module::ModulePath;
 use crate::object_value;
@@ -16,24 +18,34 @@ use crate::value::RefValue;
 use crate::EvalError;
 use crate::Expr;
 
+use crate::Program;
 use crate::Value;
 use gc::Gc;
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 pub type EvalResult<T = Value> = Result<T, EvalError>;
 pub type IntrinsicFn = dyn Fn(&[Value]) -> EvalResult;
 
 pub struct RuntimeContext<Loader: ModuleLoader> {
-    module_env: ModuleEnv<Loader>,
+    module_loader: Loader,
+    modules: HashMap<ModulePath, Gc<Module>>,
     intrinsics: HashMap<String, fn(&[Value]) -> EvalResult>,
     allow_rebind_global: bool,
     array_proto: ObjectValue,
-    prelude: Gc<Module>,
+}
+
+impl RuntimeContext<FsModuleLoader> {
+    pub fn with_paths<P: Into<PathBuf>>(paths: Vec<P>) -> Self {
+        Self::new(FsModuleLoader::new(
+            paths.into_iter().map(|x| x.into()).collect(),
+        ))
+    }
 }
 
 impl<L: ModuleLoader> RuntimeContext<L> {
-    pub fn new(loader: L) -> Self {
+    pub fn new(module_loader: L) -> Self {
         let mut intrinsics = HashMap::<String, fn(&[Value]) -> EvalResult>::new();
         macro_rules! intrinsic {
             ($name:ident, $args:ident, $body:expr) => {{
@@ -72,22 +84,12 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             })
         };
 
-        let mut module_env = ModuleEnv::new(loader);
-        let prelude = module_env.new_module(ModulePath::new("std.prelude"));
-        prelude
-            .bind("true", Value::bool(true), true, false)
-            .unwrap();
-        prelude
-            .bind("false", Value::bool(false), true, false)
-            .unwrap();
-        prelude.bind("null", Value::null(), true, false).unwrap();
-
         let mut rt = Self {
-            module_env,
+            module_loader,
+            modules: Default::default(),
             intrinsics,
             allow_rebind_global: false,
             array_proto,
-            prelude,
         };
         register_intrinsics(&mut rt);
         rt
@@ -107,20 +109,71 @@ impl<L: ModuleLoader> RuntimeContext<L> {
         self.allow_rebind_global = v;
     }
 
-    pub fn new_module(&mut self, path: ModulePath) -> Gc<Module> {
-        let m = self.module_env.new_module(path);
-        self.prelude
+    pub fn load_module(&mut self, path: &ModulePath) -> EvalResult<Gc<Module>> {
+        if let Some(m) = self.modules.get(path).cloned() {
+            return Ok(m);
+        }
+        let program = self
+            .module_loader
+            .load(path)
+            .map_err(EvalError::LoadError)?;
+        let module = self.new_module(path.clone())?;
+        self.import_prelude(&module)?;
+        self.eval_program_in_module(&program, &module)?;
+        Ok(module)
+    }
+
+    pub fn new_module(&mut self, path: ModulePath) -> EvalResult<Gc<Module>> {
+        if self.modules.contains_key(&path) {
+            return Err(EvalError::NameDefined(path.to_string()));
+        }
+        let m = Gc::new(Module::new(path.clone()));
+        self.modules.insert(path, m.clone());
+        self.import_prelude(&m)?;
+        Ok(m)
+    }
+    fn import_prelude(&mut self, module: &Gc<Module>) -> EvalResult<()> {
+        if module.path.as_ref() == "std/prelude" {
+            return Ok(());
+        }
+        let prelude = self.load_module(&ModulePath::new("std/prelude"))?;
+        prelude
             .pub_object()
             .use_object(|o| {
                 for (name, value) in o.iter() {
                     if let ObjectKey::Str(name) = name {
-                        m.bind(&**name, value.clone(), false, false)?;
+                        module.bind(&**name, value.clone(), false, false)?;
                     }
                 }
                 Ok(())
             })
             .unwrap();
-        m
+        Ok(())
+    }
+
+    pub fn eval_program_in_module(
+        &mut self,
+        program: &Program,
+        module: &Gc<Module>,
+    ) -> EvalResult<()> {
+        for t in &program.top_terms {
+            self.eval_top_term_in_module(t, module)?;
+        }
+        Ok(())
+    }
+
+    pub fn eval_top_term_in_module(
+        &mut self,
+        top_term: &TopTerm,
+        module: &Gc<Module>,
+    ) -> EvalResult<()> {
+        match top_term {
+            TopTerm::Let { is_pub, name, expr } => {
+                let value = self.eval_expr_in_module(expr, module)?;
+                module.bind(&*name.0, value, is_pub.is_some(), self.allow_rebind_global)?;
+                Ok(())
+            }
+        }
     }
 
     pub fn eval_expr_in_module(&mut self, expr: &Expr, module: &Gc<Module>) -> EvalResult {
@@ -422,6 +475,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
         if let Some(local_env) = local_env {
             LocalEnv::bind(local_env, name.clone(), value)
         } else {
+            // TODO: expr should not bind global
             current_module.bind((*name.0).clone(), value, false, self.allow_rebind_global)
         }
     }
