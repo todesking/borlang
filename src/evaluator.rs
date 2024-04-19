@@ -1,6 +1,7 @@
 use crate::ast::ArrayItem;
 use crate::ast::Ident;
 use crate::ast::ObjItem;
+use crate::intrinsic::register_intrinsics;
 use crate::object_value;
 use crate::value::AtomValue;
 use crate::value::LocalEnv;
@@ -224,68 +225,6 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 Ok(iter.into())
             })
         };
-        intrinsic!(array_iterator_next, args, {
-            EvalError::check_argument_len(1, args.len())?;
-            args[0].use_object_mut(|iter| {
-                let Some(arr) = iter.get(&ObjectKey::new_str_from_str("data")) else {
-                    return Err(EvalError::trait_protocol("Array iterator value(data)"));
-                };
-                let Some(index) = iter.get(&ObjectKey::new_str_from_str("cur")) else {
-                    return Err(EvalError::trait_protocol("Array iterator value(cur)"));
-                };
-                let index = index.try_into()?;
-                let next_value = arr.use_array(|arr| {
-                    if arr.len() <= index {
-                        return Ok(Value::array(vec![]));
-                    }
-                    Ok(Value::array(vec![arr[index].clone()]))
-                })?;
-                iter.insert(
-                    ObjectKey::new_str_from_str("cur"),
-                    Value::try_int(index + 1)?,
-                );
-                Ok(next_value)
-            })
-        });
-
-        macro_rules! intrinsic_binop {
-            ($name:ident, $t:ty, |$lhs:ident, $rhs:ident| $body:expr) => {{
-                intrinsic!($name, args, {
-                    EvalError::check_argument_len(2, args.len())?;
-                    let [$lhs, $rhs] = args else {
-                        unreachable!();
-                    };
-                    let $lhs: $t = $lhs.try_into()?;
-                    let $rhs: $t = $rhs.try_into()?;
-                    Ok($body.into())
-                })
-            }};
-        }
-
-        intrinsic_binop!(op_plus, i32, |lhs, rhs| lhs + rhs);
-        intrinsic_binop!(op_minus, i32, |lhs, rhs| lhs - rhs);
-        intrinsic_binop!(op_mul, i32, |lhs, rhs| lhs * rhs);
-        intrinsic_binop!(op_mod, i32, |lhs, rhs| lhs % rhs);
-
-        macro_rules! intrinsic_binop_any {
-            ($name:ident, |$lhs:ident, $rhs:ident| $body:expr) => {
-                intrinsic!($name, args, {
-                    EvalError::check_argument_len(2, args.len())?;
-                    let [$lhs, $rhs] = args else {
-                        unreachable!();
-                    };
-                    Ok($body.into())
-                })
-            };
-        }
-        intrinsic_binop_any!(op_eq, |lhs, rhs| lhs == rhs);
-        intrinsic_binop_any!(op_ne, |lhs, rhs| lhs != rhs);
-
-        intrinsic!(op_negate, args, {
-            EvalError::check_argument_len(1, args.len())?;
-            let v: i32 = (&args[0]).try_into()?;
-            Ok((-v).into())
-        });
 
         let mut module_env = ModuleEnv::new();
         let prelude = module_env.new_module(ModulePath::new("std.prelude"));
@@ -297,13 +236,25 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             .unwrap();
         prelude.bind("null", Value::null(), true, false).unwrap();
 
-        Self {
+        let mut rt = Self {
             module_env,
             intrinsics,
             allow_rebind_global: false,
             array_proto,
             prelude,
-        }
+        };
+        register_intrinsics(&mut rt);
+        rt
+    }
+
+    pub fn register_intrinsic<S: Into<String>>(
+        &mut self,
+        name: S,
+        f: fn(&[Value]) -> EvalResult,
+    ) -> Value {
+        let name = name.into();
+        self.intrinsics.insert(name.clone(), f);
+        Value::intrinsic(name)
     }
 
     pub fn allow_rebind_global(&mut self, v: bool) {

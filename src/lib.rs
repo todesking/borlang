@@ -1,6 +1,7 @@
 pub mod ast;
 pub mod eval_error;
 pub mod evaluator;
+pub mod intrinsic;
 pub mod parser;
 pub mod value;
 
@@ -9,6 +10,7 @@ mod parser_impl;
 pub use ast::Expr;
 pub use ast::Program;
 pub use eval_error::EvalError;
+pub use evaluator::EvalResult;
 pub use evaluator::RuntimeContext;
 pub use parser::{parse_expr, parse_program};
 pub use value::Value;
