@@ -135,10 +135,8 @@ impl Display for Value {
                 }
                 RefValue::Fun { current_module, .. } => {
                     f.write_str("#fun")?;
-                    if let Some(ref path) = current_module.path {
-                        f.write_str("@")?;
-                        path.fmt(f)?;
-                    }
+                    f.write_str("@")?;
+                    current_module.path.fmt(f)?;
                 }
             },
             Value::Atom(atom_value) => match atom_value {
@@ -497,7 +495,7 @@ mod test {
                 params: vec![],
                 body: Box::new(Expr::Var("".into())),
                 local_env: None,
-                current_module: me.new_module(Some(ModulePath::new("foo.bar"))),
+                current_module: me.new_module(ModulePath::new("foo.bar")),
             }),
             "#fun@foo.bar"
         );

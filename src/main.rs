@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use borlang::{
-    evaluator::{Module, NullModuleLoader},
+    evaluator::{Module, ModulePath, NullModuleLoader},
     parse_expr, RuntimeContext,
 };
 use gc::Gc;
@@ -42,7 +42,7 @@ struct Repl {
 impl Repl {
     fn new() -> Repl {
         let mut ctx = RuntimeContext::new();
-        let module = ctx.new_anonymous_module();
+        let module = ctx.new_module(ModulePath::new("__repl__"));
         let mut repl = Repl { ctx, module };
         repl.ctx.allow_rebind_global(true);
         repl

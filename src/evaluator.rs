@@ -51,7 +51,7 @@ impl ModuleLocator {
 pub struct Module {
     values: GcCell<HashMap<String, Value>>,
     pub_object: Value,
-    pub path: Option<ModulePath>,
+    pub path: ModulePath,
 }
 impl PartialEq for Module {
     fn eq(&self, other: &Self) -> bool {
@@ -59,7 +59,7 @@ impl PartialEq for Module {
     }
 }
 impl Module {
-    fn new(path: Option<ModulePath>) -> Module {
+    fn new(path: ModulePath) -> Module {
         Module {
             values: Default::default(),
             pub_object: Value::object(ObjectValue::new()),
@@ -138,11 +138,9 @@ impl<Loader: ModuleLoader> ModuleEnv<Loader> {
         }
     }
 
-    pub fn new_module(&mut self, path: Option<ModulePath>) -> Gc<Module> {
+    pub fn new_module(&mut self, path: ModulePath) -> Gc<Module> {
         let m = Gc::new(Module::new(path.clone()));
-        if let Some(path) = path {
-            self.modules.insert(path, m.clone());
-        }
+        self.modules.insert(path, m.clone());
         m
     }
 
@@ -155,7 +153,7 @@ impl<Loader: ModuleLoader> ModuleEnv<Loader> {
             Ok(m.clone())
         } else {
             let program = Loader::load(&path)?;
-            let m = Gc::new(Module::new(Some(path.clone())));
+            let m = Gc::new(Module::new(path.clone()));
             initialize(&m, &program)?;
             self.modules.insert(path, m.clone());
             Ok(m)
@@ -290,7 +288,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
         });
 
         let mut module_env = ModuleEnv::new();
-        let prelude = module_env.new_module(Some(ModulePath::new("std.prelude")));
+        let prelude = module_env.new_module(ModulePath::new("std.prelude"));
         prelude
             .bind("true", Value::bool(true), true, false)
             .unwrap();
@@ -312,8 +310,8 @@ impl<L: ModuleLoader> RuntimeContext<L> {
         self.allow_rebind_global = v;
     }
 
-    pub fn new_anonymous_module(&mut self) -> Gc<Module> {
-        let m = self.module_env.new_module(None);
+    pub fn new_module(&mut self, path: ModulePath) -> Gc<Module> {
+        let m = self.module_env.new_module(path);
         self.prelude
             .pub_object()
             .use_object(|o| {
