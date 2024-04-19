@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use borlang::{
-    evaluator::{Module, ModulePath, NullModuleLoader},
+    module::{Module, ModulePath, NullModuleLoader},
     parse_expr, RuntimeContext,
 };
 use gc::Gc;

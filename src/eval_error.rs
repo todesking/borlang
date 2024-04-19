@@ -1,4 +1,4 @@
-use crate::evaluator::ModulePath;
+use crate::module::ModulePath;
 use crate::value::ObjectKey;
 use crate::Value;
 

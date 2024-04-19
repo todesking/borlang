@@ -1,6 +1,4 @@
-use crate::{
-    evaluator::ModuleLoader, value::ObjectKey, EvalError, EvalResult, RuntimeContext, Value,
-};
+use crate::{module::ModuleLoader, value::ObjectKey, EvalError, EvalResult, RuntimeContext, Value};
 
 pub fn register_intrinsics<L: ModuleLoader>(rt: &mut RuntimeContext<L>) {
     macro_rules! intrinsic {

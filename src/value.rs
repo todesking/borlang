@@ -1,8 +1,4 @@
-use crate::{
-    ast::Ident,
-    evaluator::{EvalResult, Module},
-    EvalError, Expr,
-};
+use crate::{ast::Ident, evaluator::EvalResult, module::Module, EvalError, Expr};
 use gc::{Finalize, Gc, GcCell, Trace};
 use std::{
     collections::HashMap,
@@ -455,7 +451,7 @@ impl Display for ObjectValue {
 mod test {
     use crate::{
         array_value,
-        evaluator::{ModuleEnv, ModulePath, NullModuleLoader},
+        module::{ModuleEnv, ModulePath, NullModuleLoader},
         object_value,
     };
 
