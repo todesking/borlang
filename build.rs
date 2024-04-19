@@ -7,14 +7,17 @@ fn main() {
     build_parser(program_parser_dir, "program");
     build_parser(expr_parser_dir, "expr");
 
-    println!(
-        "cargo:rerun-if-changed={}",
-        program_parser_dir.to_str().unwrap()
-    );
-    println!(
-        "cargo:rerun-if-changed={}",
-        expr_parser_dir.to_str().unwrap()
-    );
+    rerun_if_js_changed_in(program_parser_dir);
+    rerun_if_js_changed_in(expr_parser_dir);
+}
+
+fn rerun_if_js_changed_in(dir: &Path) {
+    for f in std::fs::read_dir(dir).unwrap() {
+        let f = f.unwrap();
+        if f.path().extension().and_then(|x| x.to_str()) == Some("js") {
+            println!("cargo:rerun-if-changed={}", f.path().to_str().unwrap());
+        }
+    }
 }
 
 fn build_parser(dir: &Path, grammar_name: &str) {
