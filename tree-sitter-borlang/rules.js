@@ -165,13 +165,19 @@ const common_rules = {
   expr_prop: $ => prec(Prec.prop, seq(
     field('expr', $._expr),
     '.',
-    field('name', $.ident),
+    field('prop', $._prop_spec),
   )),
   expr_prop_opt: $ => prec(Prec.prop, seq(
     field('expr', $._expr),
     '?.',
-    field('name', $.ident),
+    field('prop', $._prop_spec),
   )),
+  _prop_spec: $ => choice(
+    $.prop_spec_const,
+    $.prop_spec_dyn,
+  ),
+  prop_spec_const: $ => $.ident,
+  prop_spec_dyn: $ => seq('[', $._expr, ']'),
   expr_index: $ => prec.left(Prec.index, seq(
     field('expr', $._expr),
     '[',

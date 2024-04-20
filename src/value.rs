@@ -106,6 +106,19 @@ impl Value {
             _ => Err(EvalError::type_error("Object", self.clone())),
         }
     }
+    pub fn get_object_prop(&self, key: ObjectKey) -> EvalResult {
+        self.use_object(|obj| {
+            obj.get(&key)
+                .cloned()
+                .ok_or_else(|| EvalError::property_not_found(key))
+        })
+    }
+    pub fn get_object_prop_str(&self, prop: &str) -> EvalResult {
+        self.get_object_prop(ObjectKey::new_str_from_str(prop))
+    }
+    pub fn get_object_prop_sym(&self, prop: &str) -> EvalResult {
+        self.get_object_prop(ObjectKey::Sym(Rc::new(prop.into())))
+    }
 
     pub fn is_null(&self) -> bool {
         matches!(self, Value::Atom(AtomValue::Null))
@@ -204,6 +217,17 @@ impl TryFrom<&Value> for String {
         match value {
             Value::Atom(AtomValue::Str(s)) => Ok((**s).clone()),
             _ => Err(EvalError::type_error("String", value.clone())),
+        }
+    }
+}
+impl TryFrom<Value> for ObjectKey {
+    type Error = EvalError;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::Atom(AtomValue::Sym(s)) => Ok(ObjectKey::Sym(s.clone())),
+            Value::Atom(AtomValue::Str(s)) => Ok(ObjectKey::Str(s.clone())),
+            _ => Err(EvalError::type_error("String|Symbol", value)),
         }
     }
 }

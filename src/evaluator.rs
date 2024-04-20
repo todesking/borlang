@@ -3,6 +3,7 @@ use crate::ast::ExprStr;
 use crate::ast::Ident;
 use crate::ast::LetPattern;
 use crate::ast::ObjItem;
+use crate::ast::PropSpec;
 use crate::ast::TopTerm;
 use crate::intrinsic::register_intrinsics;
 use crate::module::FsModuleLoader;
@@ -27,6 +28,7 @@ use gc::Gc;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 pub type EvalResult<T = Value> = Result<T, EvalError>;
 pub type IntrinsicFn = dyn Fn(&[Value]) -> EvalResult;
@@ -258,9 +260,10 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 self.eval_app(&f, &[v])
             }
             Expr::App { expr: f, args } => match &**f {
-                Expr::Prop { expr, name } => {
+                Expr::Prop { expr, prop } => {
                     let this = self.eval_expr(expr, local_env, current_module)?;
-                    let f = self.get_prop(&this, &name.to_object_key())?;
+                    let key = self.prop_spec_to_object_key(prop, local_env, current_module);
+                    let f = self.get_prop(&this, &key?)?;
                     let mut args = self.eval_args(args, local_env, current_module)?;
                     args.insert(0, this);
                     self.eval_app(&f, &args)
@@ -300,11 +303,17 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                             Ok(Value::null())
                         })?;
                     }
-                    Expr::Prop { expr, name } => {
+                    Expr::Prop { expr, prop } => {
                         let obj = self.eval_expr(expr, local_env, current_module)?;
+                        let key = match prop {
+                            PropSpec::Dyn(prop) => self
+                                .eval_expr(prop, local_env, current_module)?
+                                .try_into()?,
+                            PropSpec::Const(name) => ObjectKey::new_str_from_str(name),
+                        };
                         let value = self.eval_expr(rhs, local_env, current_module)?;
                         obj.use_object_mut(|obj| {
-                            obj.insert(name.to_object_key(), value);
+                            obj.insert(key, value);
                             Ok(Value::null())
                         })?;
                     }
@@ -352,17 +361,18 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 local_env.clone(),
                 current_module.clone(),
             )),
-            Expr::Prop { expr, name } => {
+            Expr::Prop { expr, prop } => {
                 let value = self.eval_expr(expr, local_env, current_module)?;
-                self.get_prop(&value, &name.to_object_key())
+                let key = self.prop_spec_to_object_key(prop, local_env, current_module)?;
+                self.get_prop(&value, &key)
             }
-            Expr::PropOpt { expr, name } => {
+            Expr::PropOpt { expr, prop } => {
                 let value = self.eval_expr(expr, local_env, current_module)?;
                 if value.is_null() {
-                    Ok(Value::null())
-                } else {
-                    self.get_prop(&value, &name.to_object_key())
+                    return Ok(Value::null());
                 }
+                let key = self.prop_spec_to_object_key(prop, local_env, current_module)?;
+                self.get_prop(&value, &key)
             }
             Expr::Index { expr, index } => {
                 let value = self.eval_expr(expr, local_env, current_module)?;
@@ -503,11 +513,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             .collect::<Result<Vec<_>, _>>()
     }
 
-    fn read_object<F: FnOnce(&ObjectValue) -> EvalResult>(
-        &self,
-        value: &Value,
-        f: F,
-    ) -> EvalResult {
+    fn as_object<F: FnOnce(&ObjectValue) -> EvalResult>(&self, value: &Value, f: F) -> EvalResult {
         match value {
             Value::Atom(_) => f(&ObjectValue::new()),
             Value::Ref(ref_value) => match &**ref_value {
@@ -520,11 +526,30 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             },
         }
     }
+    fn prop_spec_to_object_key(
+        &mut self,
+        prop: &PropSpec,
+        local_env: &Option<LocalEnvRef>,
+        current_module: &Gc<Module>,
+    ) -> EvalResult<ObjectKey> {
+        let key = match prop {
+            PropSpec::Const(name) => ObjectKey::Str(Rc::new(name.to_owned())),
+            PropSpec::Dyn(expr) => {
+                let name = self.eval_expr(expr, local_env, current_module)?;
+                match name {
+                    Value::Atom(AtomValue::Str(name)) => ObjectKey::Str(name.clone()),
+                    Value::Atom(AtomValue::Sym(name)) => ObjectKey::Sym(name.clone()),
+                    _ => return Err(EvalError::type_error("String|Symbol", name.clone())),
+                }
+            }
+        };
+        Ok(key)
+    }
     fn get_prop(&self, value: &Value, key: &ObjectKey) -> EvalResult {
-        self.read_object(value, |obj| {
+        self.as_object(value, |obj| {
             obj.get(key)
                 .cloned()
-                .ok_or_else(|| EvalError::PropertyNotFound(key.clone()))
+                .ok_or_else(|| EvalError::property_not_found(key.clone()))
         })
     }
     pub fn bind_var(

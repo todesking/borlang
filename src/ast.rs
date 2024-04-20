@@ -118,9 +118,9 @@ pub enum Expr {
     #[serde(rename = "expr_paren")]
     Paren { expr: Box<Expr> },
     #[serde(rename = "expr_prop")]
-    Prop { expr: Box<Expr>, name: Ident },
+    Prop { expr: Box<Expr>, prop: PropSpec },
     #[serde(rename = "expr_prop_opt")]
-    PropOpt { expr: Box<Expr>, name: Ident },
+    PropOpt { expr: Box<Expr>, prop: PropSpec },
     #[serde(rename = "expr_index")]
     Index { expr: Box<Expr>, index: Box<Expr> },
     #[serde(rename = "expr_binop")]
@@ -135,11 +135,20 @@ pub enum Expr {
     #[serde(rename = "expr_import")]
     Import(ExprStr),
 }
+
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
 #[serde(rename = "expr_str")]
 pub struct ExprStr {
     #[serde(deserialize_with = "deserialize_string_content_opt")]
     pub content: Rc<String>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
+pub enum PropSpec {
+    #[serde(rename = "prop_spec_const")]
+    Const(String),
+    #[serde(rename = "prop_spec_dyn")]
+    Dyn(Box<Expr>),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize)]

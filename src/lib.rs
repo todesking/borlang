@@ -18,18 +18,27 @@ pub use value::Value;
 
 #[macro_export]
 macro_rules! object_value {
-    ($($name:ident : $value:expr),*) => {{
+    ($name:ident : $value:expr $(,$($rest:tt)*)?) => {{
         #[allow(unused_mut)]
         let mut obj = $crate::value::ObjectValue::new();
-        object_value!(@impl obj, $($name : $value),*)
+        object_value!(@impl obj, $name: $value, $($($rest)*)?)
     }};
-    (@impl $obj:ident, $name:ident : $value:expr, $($rest_name:ident : $rest_value:expr),*) => {{
+    ([sym $name:literal]: $value:expr $(,$($rest:tt)*)?) => {{
+        #[allow(unused_mut)]
+        let mut obj = $crate::value::ObjectValue::new();
+        object_value!(@impl obj, [sym $name]: $value, $($($rest)*)?)
+    }};
+    ($(,)?) => {{
+        $crate::value::ObjectValue::new()
+    }};
+    (@impl $obj:ident, $name:ident : $value:expr $(,$($rest:tt)*)?) => {{
         $obj.insert($crate::value::ObjectKey::Str(std::rc::Rc::new(stringify!($name).to_owned())), $value.into());
-        object_value!(@impl $obj, $($rest_name : $rest_value),*)
+        object_value!(@impl $obj, $($($rest)*)?)
     }};
-    (@impl $obj:ident, $name:ident : $value:expr) => {
-        object_value!(@impl $obj, $name : $value,)
-    };
+    (@impl $obj:ident, [sym $name:literal] : $value:expr $(, $($rest:tt)*)?) => {{
+        $obj.insert($crate::value::ObjectKey::Sym(std::rc::Rc::new(stringify!($name).to_owned())), $value.into());
+        object_value!(@impl $obj, $($($rest)*)?)
+    }};
     (@impl $obj:ident,) => {
         $obj
     };
@@ -229,7 +238,7 @@ mod test {
     }
 
     #[test]
-    fn object_reassign() {
+    fn object_assign() {
         assert_eval_ok!(["let o = {}", "o.foo = 1", "o"], object_value! {foo: 1});
         assert_eval_ok!(
             ["let o = {foo: 1}", "o.foo = 2", "o"],
@@ -247,6 +256,10 @@ mod test {
             EvalError::type_error("Object", 0)
         );
     }
+
+    #[test]
+    #[ignore]
+    fn object_assign_dyn() {}
 
     #[test]
     fn obj_spread() {
@@ -339,6 +352,22 @@ mod test {
         );
         assert_eval_ok!("{foo: 123}.foo", 123);
         assert_eval_ok!("{foo: 123, bar: {baz: 999}}.bar.baz", 999);
+    }
+
+    #[test]
+    fn obj_prop_dyn_str() {
+        assert_eval_ok!(r#"{a: 1}.["a"]"#, 1);
+    }
+
+    #[test]
+    #[ignore]
+    fn obj_prop_dyn_sym() {
+        let (mut rt, m) = new_rt();
+        eval_program(&mut rt, &m, "sym a; let o = {[a]: 1};").unwrap();
+        assert_eq!(
+            eval_expr(&mut rt, &m, "o").unwrap(),
+            Value::object(object_value! { [sym "__test__.a"]: 1})
+        );
     }
 
     #[test]
