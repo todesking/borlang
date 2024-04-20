@@ -10,7 +10,7 @@ use crate::module::Module;
 
 use crate::module::ModuleLoader;
 use crate::module::ModulePath;
-use crate::object_value;
+
 use crate::value::AtomValue;
 use crate::value::LocalEnv;
 use crate::value::LocalEnvRef;
@@ -24,6 +24,7 @@ use crate::Program;
 use crate::Value;
 use gc::Gc;
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -35,7 +36,7 @@ pub struct RuntimeContext<Loader: ModuleLoader> {
     modules: HashMap<ModulePath, Gc<Module>>,
     intrinsics: HashMap<String, fn(&[Value]) -> EvalResult>,
     allow_rebind_global: bool,
-    array_proto: ObjectValue,
+    array_proto: RefCell<Value>,
 }
 
 impl RuntimeContext<FsModuleLoader> {
@@ -48,56 +49,29 @@ impl RuntimeContext<FsModuleLoader> {
 
 impl<L: ModuleLoader> RuntimeContext<L> {
     pub fn new(module_loader: L) -> Self {
-        let mut intrinsics = HashMap::<String, fn(&[Value]) -> EvalResult>::new();
-        macro_rules! intrinsic {
-            ($name:ident, $args:ident, $body:expr) => {{
-                fn $name($args: &[Value]) -> EvalResult {
-                    $body
-                }
-                let name = stringify!($name).to_owned();
-                intrinsics.insert(name.clone(), $name);
-                Value::intrinsic(name)
-            }};
-        }
-
-        let array_proto = object_value! {
-            len: intrinsic!(array_len, args, {match args {
-                [this] => this.use_array(|arr| Ok((arr.len() as i32).into())),
-                _ => Err(EvalError::argument_length(1, args.len())),
-            }}),
-            push: intrinsic!(array_push, args, { match args {
-                [this, value] => this.use_array_mut(|arr| {
-                    arr.push(value.clone());
-                    Ok(Value::null())
-                }),
-                _ => Err(EvalError::argument_length(2, args.len())),
-            }}),
-            iterator: intrinsic!(array_iterator, args, {
-                EvalError::check_argument_len(1, args.len())?;
-                let this = &args[0];
-                let mut iter = ObjectValue::new();
-                iter.insert(
-                    ObjectKey::new_str_from_str("next"),
-                    Value::intrinsic("array_iterator_next"),
-                );
-                iter.insert(ObjectKey::new_str_from_str("data"), this.clone());
-                iter.insert(ObjectKey::new_str_from_str("cur"), Value::int(0));
-                Ok(iter.into())
-            })
-        };
-
         let mut rt = Self {
             module_loader,
             modules: Default::default(),
-            intrinsics,
+            intrinsics: Default::default(),
             allow_rebind_global: false,
-            array_proto,
+            array_proto: RefCell::new(Value::null()),
         };
+
         register_intrinsics(&mut rt);
 
-        let module = rt.new_module(ModulePath::new("std.internal")).unwrap();
-        module
+        let std_internal = rt.new_module(ModulePath::new("std.internal")).unwrap();
+        std_internal
             .bind("intrinsic", Value::intrinsic("intrinsic"), true, false)
+            .unwrap();
+        let std = rt.load_module(&ModulePath::new("std")).unwrap();
+        *rt.array_proto.borrow_mut() = std
+            .lookup("Array")
+            .unwrap()
+            .use_object(|o| {
+                o.get(&ObjectKey::new_str_from_str("prototype"))
+                    .cloned()
+                    .ok_or_else(|| unreachable!())
+            })
             .unwrap();
         rt
     }
@@ -128,7 +102,6 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             .load(path)
             .map_err(EvalError::LoadError)?;
         let module = self.new_module(path.clone())?;
-        self.import_prelude(&module)?;
         self.eval_program_in_module(&program, &module)?;
         Ok(module)
     }
@@ -538,7 +511,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                     let obj = obj.borrow();
                     f(&obj)
                 }
-                RefValue::Array(_) => f(&self.array_proto),
+                RefValue::Array(_) => self.array_proto.borrow().use_object(f),
                 _ => f(&ObjectValue::new()),
             },
         }

@@ -58,7 +58,7 @@ macro_rules! array_value {
 mod test {
     use std::path::PathBuf;
 
-    use crate::module::{ModulePath, NullModuleLoader};
+    use crate::module::ModulePath;
     use crate::value::ObjectKey;
 
     use self::module::{FsModuleLoader, Module};
@@ -340,8 +340,7 @@ mod test {
 
     #[test]
     fn rebind_global() {
-        let mut rt = RuntimeContext::new(NullModuleLoader);
-        let m = rt.new_module(ModulePath::new("__test__")).unwrap();
+        let (mut rt, m) = new_rt();
         rt.eval_expr_in_module(&parse_expr("let a = 1").unwrap(), &m)
             .unwrap();
         assert_eq!(

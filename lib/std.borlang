@@ -1,42 +1,16 @@
 let {intrinsic} = import "std.internal";
 
-pub let {prototype} = import "std.internal";
-
-sym let iterable_itarator;
-pub let Iterable = {
-  iterator: iterable_iterator,
-}
-
-arr.[Iterable.iterator]()
-
-sym index_r_get;
-pub let IndexR = {
-  get: index_r_get,
-}
-
-sym index_w_set;
-pub let IndexW = {
-  set: index_w_set,
-}
-
-
-sym function_apply;
-pub let Function {
-  apply: function_apply,
-}
-
 pub let Array = {
   prototype: {
-    len: intrinsic('array.len'),
-    [IndexW.set]: intrinsic('array.set'),
-    [IndexR.get]: intrinsic('array.get'),
-    [Iterable.iterator]: fn (self) => ({
+    len: intrinsic("array_len"),
+    push: intrinsic("array_push"),
+    iterator: fn (self) => ({
       self,
       index: 0,
-      [Iterator.next]: (self) =>  {
-        if self.index < self.len() {
+      next: fn (self) => {
+        if self.index < self.self.len() {
           let x = self.self[self.index];
-          self.index += 1;
+          self.index = self.index + 1;
           [x]
         } else {
           []
@@ -44,4 +18,4 @@ pub let Array = {
       }
     })
   }
-}
+};

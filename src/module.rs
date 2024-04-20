@@ -163,17 +163,17 @@ impl<Loader: ModuleLoader> ModuleEnv<Loader> {
 pub enum LoadError {
     #[error("Module `{0}` not found")]
     NotFound(ModulePath),
-    #[error(transparent)]
-    ParseError(ParseError),
-    #[error(transparent)]
-    IoError(std::io::Error),
+    #[error("Parse error while loading {0}")]
+    ParseError(PathBuf, #[source] ParseError),
+    #[error("IO error while loading {0}")]
+    IoError(PathBuf, #[source] std::io::Error),
 }
 impl PartialEq for LoadError {
     fn eq(&self, other: &Self) -> bool {
         match self {
-            Self::IoError(_) => false,
-            Self::ParseError(e1) => match other {
-                Self::ParseError(e2) => e1 == e2,
+            Self::IoError(_, _) => false,
+            Self::ParseError(m1, e1) => match other {
+                Self::ParseError(m2, e2) => m1 == m2 && e1 == e2,
                 _ => false,
             },
             Self::NotFound(m1) => match other {
@@ -215,16 +215,19 @@ impl ModuleLoader for FsModuleLoader {
         rel_path.set_extension("borlang");
 
         for root in &self.paths {
-            match std::fs::File::open(root.join(&rel_path)) {
+            let target_path = root.join(&rel_path);
+            match std::fs::File::open(target_path.clone()) {
                 Ok(mut file) => {
                     let mut src = String::new();
-                    let _size = file.read_to_string(&mut src).map_err(LoadError::IoError)?;
-                    return parse_program(&src).map_err(LoadError::ParseError);
+                    let _size = file
+                        .read_to_string(&mut src)
+                        .map_err(|e| LoadError::IoError(target_path.clone(), e))?;
+                    return parse_program(&src).map_err(|e| LoadError::ParseError(target_path, e));
                 }
                 Err(err) => match err.kind() {
                     std::io::ErrorKind::NotFound => continue,
                     _ => {
-                        return Err(LoadError::IoError(err));
+                        return Err(LoadError::IoError(target_path, err));
                     }
                 },
             }
@@ -262,7 +265,7 @@ mod test {
         );
         assert!(matches!(
             loader.load(&ModulePath::new("syntax_error")),
-            Err(LoadError::ParseError(_)),
+            Err(LoadError::ParseError(_, _)),
         ));
     }
 }

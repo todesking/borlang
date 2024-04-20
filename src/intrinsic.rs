@@ -35,6 +35,17 @@ pub fn register_intrinsics<L: ModuleLoader>(rt: &mut RuntimeContext<L>) {
             Ok(next_value)
         })
     });
+    intrinsic!(array_len, args, {
+        EvalError::check_argument_len(1, args.len())?;
+        args[0].use_array(|arr| Ok(Value::int(arr.len() as i32)))
+    });
+    intrinsic!(array_push, args, {
+        EvalError::check_argument_len(2, args.len())?;
+        args[0].use_array_mut(|arr| {
+            arr.push(args[1].clone());
+            Ok(Value::null())
+        })
+    });
 
     macro_rules! intrinsic_binop {
         ($name:ident, $t:ty, |$lhs:ident, $rhs:ident| $body:expr) => {{
