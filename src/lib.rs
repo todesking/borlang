@@ -65,7 +65,7 @@ macro_rules! array_value {
 
 #[cfg(test)]
 mod test {
-    use std::path::PathBuf;
+    use std::{path::PathBuf, rc::Rc};
 
     use crate::module::ModulePath;
     use crate::value::ObjectKey;
@@ -331,7 +331,9 @@ mod test {
         assert_eval_ok!(["let a = 0", "for x in [1, 2, 3] { a = a + x }", "a"], 6);
         assert_eval_err!(
             "for x in 0 {}",
-            EvalError::property_not_found(ObjectKey::new_str_from_str("iterator"))
+            EvalError::property_not_found(ObjectKey::Sym(Rc::new(
+                "std:Iterable_iterator".to_owned()
+            )))
         );
     }
 
@@ -372,7 +374,7 @@ mod test {
         eval_program(&mut rt, &m, "sym a; let o = {[a]: 1};").unwrap();
         assert_eq!(
             eval_expr(&mut rt, &m, "o").unwrap(),
-            Value::object(object_value! { [sym "__test__.a"]: 1})
+            Value::object(object_value! { [sym "__test__:a"]: 1})
         );
     }
 
@@ -547,16 +549,16 @@ mod test {
 
         assert_eq!(
             eval_expr(&mut rt, &m, "private_sym"),
-            Ok(Value::sym("__test__.private_sym"))
+            Ok(Value::sym("__test__:private_sym"))
         );
         assert_eq!(
             eval_expr(&mut rt, &m, "public_sym"),
-            Ok(Value::sym("__test__.public_sym"))
+            Ok(Value::sym("__test__:public_sym"))
         );
 
         assert_eq!(
             m.pub_object(),
-            &Value::object(object_value! {public_sym: Value::sym("__test__.public_sym")})
+            &Value::object(object_value! {public_sym: Value::sym("__test__:public_sym")})
         );
     }
 }

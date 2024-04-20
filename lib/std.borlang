@@ -1,13 +1,23 @@
-let {intrinsic} = import "std.internal";
+let {intrinsic} = import "std/internal";
+
+sym Iterable_iterator;
+pub let Iterable = {
+  iterator: Iterable_iterator,
+};
+
+sym Iterator_next;
+pub let Iterator = {
+  next: Iterator_next,
+};
 
 pub let Array = {
   prototype: {
     len: intrinsic("array_len"),
     push: intrinsic("array_push"),
-    iterator: fn (self) => {
+    [Iterable.iterator]: fn (self) => {
       self,
       index: 0,
-      next: fn (self) => do {
+      [Iterator.next]: fn (self) => do {
         if self.index < self.self.len() {
           let x = self.self[self.index];
           self.index = self.index + 1;

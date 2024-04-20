@@ -62,7 +62,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
 
         register_intrinsics(&mut rt);
 
-        let std_internal = rt.new_module(ModulePath::new("std.internal")).unwrap();
+        let std_internal = rt.new_module(ModulePath::new("std/internal")).unwrap();
         std_internal
             .bind("intrinsic", Value::intrinsic("intrinsic"), true, false)
             .unwrap();
@@ -161,7 +161,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 })
             }
             TopTerm::Sym { is_pub, name } => {
-                let value = Value::sym(format!("{}.{}", module.path, name.0));
+                let value = Value::sym(format!("{}:{}", module.path, name.0));
                 module.bind(&*name.0, value, is_pub.is_some(), false)
             }
         }
@@ -331,11 +331,24 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             }
             Expr::For { name, target, body } => {
                 let target = self.eval_expr(target, local_env, current_module)?;
-                let iter_new = self.get_prop(&target, &ObjectKey::new_str_from_str("iterator"))?;
+                let std = self.load_module(&ModulePath::new("std"))?;
+                let sym_iter = std
+                    .lookup("Iterable")
+                    .unwrap()
+                    .get_object_prop_str("iterator")
+                    .unwrap();
+                let iter_new = self.get_prop(&target, &sym_iter.to_object_key()?)?;
                 let iter = self.eval_app(&iter_new, &[target])?;
                 let args = [iter];
+                let key_next = std
+                    .lookup("Iterator")
+                    .unwrap()
+                    .get_object_prop_str("next")
+                    .unwrap()
+                    .to_object_key()
+                    .unwrap();
                 loop {
-                    let next = self.get_prop(&args[0], &ObjectKey::new_str_from_str("next"))?;
+                    let next = self.get_prop(&args[0], &key_next)?;
                     let next_value = self.eval_app(&next, &args)?;
                     let next_value = next_value.use_array(|a| match a {
                         [] => Ok(None),
