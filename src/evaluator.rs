@@ -157,6 +157,10 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                     module.bind(&*n.0, v, is_pub.is_some(), self.allow_rebind_global)
                 })
             }
+            TopTerm::Sym { is_pub, name } => {
+                let value = Value::sym(format!("{}.{}", module.path, name.0));
+                module.bind(&*name.0, value, is_pub.is_some(), false)
+            }
         }
     }
 
@@ -442,7 +446,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 let f = self
                     .intrinsics
                     .get(&*name.0)
-                    .expect("Intrinsic should registered");
+                    .unwrap_or_else(|| panic!("Intrinsic not registered: {}", name));
                 f(args)
             }
             Value::Ref(v) => match &**v {

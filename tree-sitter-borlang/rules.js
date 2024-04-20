@@ -201,7 +201,7 @@ module.exports.program_grammar = grammar({
   word: $ => $.ident,
   rules: {
     program: $ => field('top_terms', repeat($._top_term)),
-    _top_term: $ => choice($.top_term_let),
+    _top_term: $ => choice($.top_term_let, $.top_term_sym),
     top_term_let: $ => seq(
       optional(field('pub', 'pub')),
       'let',
@@ -209,6 +209,12 @@ module.exports.program_grammar = grammar({
       '=',
       field('expr', $._expr),
       ';'),
+    top_term_sym: $ => seq(
+      optional(field('pub', 'pub')),
+      'sym',
+      field('name', $.ident),
+      ';'
+    ),
     ...common_rules,
   },
 })

@@ -61,7 +61,7 @@ mod test {
     use crate::module::ModulePath;
     use crate::value::ObjectKey;
 
-    use self::module::{FsModuleLoader, Module};
+    use self::module::{FsModuleLoader, Module, ModuleLoader};
 
     use super::*;
     use gc::Gc;
@@ -106,6 +106,24 @@ mod test {
             .new_module(crate::module::ModulePath::new("__test__"))
             .unwrap();
         (ctx, module)
+    }
+
+    fn eval_program<L: ModuleLoader>(
+        rt: &mut RuntimeContext<L>,
+        module: &Gc<Module>,
+        src: &'static str,
+    ) -> EvalResult<()> {
+        let program = parse_program(src).unwrap();
+        rt.eval_program_in_module(&program, module)
+    }
+
+    fn eval_expr<L: ModuleLoader>(
+        rt: &mut RuntimeContext<L>,
+        module: &Gc<Module>,
+        src: &'static str,
+    ) -> EvalResult {
+        let program = parse_expr(src).unwrap();
+        rt.eval_expr_in_module(&program, module)
     }
 
     #[test]
@@ -475,6 +493,35 @@ mod test {
         assert_eval_ok!(
             ["let [a, b, ..rest] = [1, 2, 3, 4]", "[a, b, rest]"],
             array_value![1, 2, array_value![3, 4]]
+        );
+    }
+
+    #[test]
+    fn top_term_sym() {
+        let (mut rt, m) = new_rt();
+
+        eval_program(
+            &mut rt,
+            &m,
+            r#"
+        sym private_sym;
+        pub sym public_sym;
+        "#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            eval_expr(&mut rt, &m, "private_sym"),
+            Ok(Value::sym("__test__.private_sym"))
+        );
+        assert_eq!(
+            eval_expr(&mut rt, &m, "public_sym"),
+            Ok(Value::sym("__test__.public_sym"))
+        );
+
+        assert_eq!(
+            m.pub_object(),
+            &Value::object(object_value! {public_sym: Value::sym("__test__.public_sym")})
         );
     }
 }

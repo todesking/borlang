@@ -19,6 +19,12 @@ pub enum TopTerm {
         name: LetPattern,
         expr: Expr,
     },
+    #[serde(rename = "top_term_sym")]
+    Sym {
+        #[serde(rename = "pub")]
+        is_pub: Option<()>,
+        name: Ident,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Deserialize)]

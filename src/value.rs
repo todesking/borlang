@@ -37,6 +37,9 @@ impl Value {
     pub fn null() -> Value {
         AtomValue::Null.into()
     }
+    pub fn sym<S: Into<String>>(s: S) -> Value {
+        AtomValue::Sym(Rc::new(s.into())).into()
+    }
     pub fn fun(
         params: Vec<Ident>,
         body: Box<Expr>,
@@ -154,6 +157,10 @@ impl Display for Value {
                     f.write_str(s)?;
                     f.write_char('"')?;
                 }
+                AtomValue::Sym(s) => {
+                    f.write_char('#')?;
+                    f.write_str(s)?;
+                }
             },
         }
         Ok(())
@@ -208,6 +215,7 @@ pub enum AtomValue {
     Intrinsic(Ident),
     Bool(bool),
     Str(Rc<String>),
+    Sym(Rc<String>),
 }
 impl AtomValue {
     pub fn str<S: Into<String>>(s: S) -> AtomValue {
