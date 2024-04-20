@@ -134,6 +134,18 @@ mod test {
     }
 
     #[test]
+    fn int_compare() {
+        assert_eval_ok!("1 < 2", true);
+        assert_eval_ok!("2 < 1", false);
+        assert_eval_ok!("1 <= 1", true);
+        assert_eval_ok!("2 <= 1", false);
+        assert_eval_ok!("2 > 1", true);
+        assert_eval_ok!("1 > 2", false);
+        assert_eval_ok!("1 >= 1", true);
+        assert_eval_ok!("1 >= 2", false);
+    }
+
+    #[test]
     fn paren() {
         assert_eval_ok!("(1)", 1);
         assert_eval_ok!("(1 + 1)", 2);

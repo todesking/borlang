@@ -5,7 +5,7 @@ const {repsep} = require('./util')
 const Prec = {
   reassign: 0,
   let: 0,
-  eqeq: 1,
+  compare: 1,
   add: 2,
   mul: 3,
 
@@ -54,9 +54,9 @@ const common_rules = {
   expr_var: $ => prec(Prec.expr_var, field('ident', $.ident)),
   expr_paren: $ => seq('(', field('expr', $._expr), ')'),
   expr_binop: $ => choice(
-    prec.left(Prec.eqeq, seq(
+    prec.left(Prec.compare, seq(
       field('lhs', $._expr),
-      field('op', choice($.op_eqeq, $.op_neq)),
+      field('op', choice($.op_eqeq, $.op_neq, $.op_gt, $.op_ge, $.op_lt, $.op_le)),
       field('rhs', $._expr),
     )),
     prec.left(Prec.mul, seq(
@@ -189,6 +189,10 @@ const common_rules = {
   op_mod: _ => '%',
   op_eqeq: _ => '==',
   op_neq: _ => '!=',
+  op_lt: _ => '<',
+  op_le: _ => '<=',
+  op_gt: _ => '>',
+  op_ge: _ => '>=',
   op_spread: _ => '..',
 }
 

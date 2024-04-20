@@ -266,6 +266,10 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                     "%" => "op_mod",
                     "==" => "op_eq",
                     "!=" => "op_ne",
+                    ">" => "op_gt",
+                    ">=" => "op_ge",
+                    "<" => "op_lt",
+                    "<=" => "op_le",
                     unk => panic!("Unknown binary operator: {unk}"),
                 };
                 let f = Value::intrinsic(intrinsic_name);
