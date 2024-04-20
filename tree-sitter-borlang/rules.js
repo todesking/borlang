@@ -32,7 +32,7 @@ const common_rules = {
     $.expr_array,
     $.expr_binop,
     $.expr_neg,
-    $.expr_block,
+    $.expr_do,
     $.expr_let,
     $.expr_reassign,
     $.expr_app,
@@ -74,30 +74,38 @@ const common_rules = {
   )),
   expr_object: $ => prec(Prec.object, seq(
     '{',
-    repsep(
-      $._obj_item,
-      ',',
-    ),
+    repsep($._obj_item, ','),
     '}',
   )),
-  _obj_item: $ => choice($.obj_item_kv, $.obj_item_spread),
-  obj_item_kv: $ => prec(Prec.obj_item_kv, seq(
-    field('name', $.ident),
+  _obj_item: $ => choice($.obj_item_const, $.obj_item_dyn, $.obj_item_spread),
+  obj_item_const: $ => seq(
+    field('key', $.ident),
     optional(seq(
       ':',
       field('expr', $._expr),
-    ))),
+    )),
+  ),
+  obj_item_dyn: $ => seq(
+    '[',
+    field('key', $._expr),
+    ']',
+    ':',
+    field('expr', $._expr),
   ),
   obj_item_spread: $ => seq(
     '..',
     $._expr,
   ),
-  expr_block: $ => prec(Prec.block, seq(
+  expr_do: $ => seq(
+    'do',
+    $.block,
+  ),
+  block: $ => seq(
     '{',
     repeat(seq(field('terms', $._expr), ';')),
     field('expr', optional($._expr)),
     '}',
-  )),
+  ),
   expr_array: $ => seq(
     '[',
     repsep(field('item', $.array_item), ','),
@@ -149,10 +157,10 @@ const common_rules = {
   expr_if: $ => seq(
     'if',
     field('cond', $._expr),
-    field('th', $.expr_block),
+    field('th', $.block),
     optional(seq(
       'else',
-      field('el', $.expr_block),
+      field('el', $.block),
     )),
   ),
   expr_for: $ => seq(
@@ -160,7 +168,7 @@ const common_rules = {
     field('name', $.ident),
     'in',
     field('target', $._expr),
-    field('body', $.expr_block),
+    field('body', $.block),
   ),
   expr_prop: $ => prec(Prec.prop, seq(
     field('expr', $._expr),

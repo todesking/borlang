@@ -1,4 +1,5 @@
 use crate::ast::ArrayItem;
+use crate::ast::Block;
 use crate::ast::ExprStr;
 use crate::ast::Ident;
 use crate::ast::LetPattern;
@@ -183,16 +184,21 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 let mut buf = ObjectValue::new();
                 for item in items {
                     match item {
-                        ObjItem::Kv {
-                            name,
+                        ObjItem::Const {
+                            key,
                             expr: Some(expr),
                         } => {
                             let value = self.eval_expr(expr, local_env, current_module)?;
-                            buf.insert(name.to_object_key(), value);
+                            buf.insert(key.to_object_key(), value);
                         }
-                        ObjItem::Kv { name, expr: None } => {
-                            let value = self.get_var(local_env, current_module, name)?;
-                            buf.insert(name.to_object_key(), value);
+                        ObjItem::Const { key, expr: None } => {
+                            let value = self.get_var(local_env, current_module, key)?;
+                            buf.insert(key.to_object_key(), value);
+                        }
+                        ObjItem::Dyn { key, expr } => {
+                            let key = self.eval_expr(key, local_env, current_module)?;
+                            let value = self.eval_expr(expr, local_env, current_module)?;
+                            buf.insert(key.to_object_key()?, value);
                         }
                         ObjItem::Spread(expr) => {
                             let value = self.eval_expr(expr, local_env, current_module)?;
@@ -224,17 +230,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             }
             Expr::Var(name) => self.get_var(local_env, current_module, name),
             Expr::Paren { expr } => self.eval_expr(expr, local_env, current_module),
-            Expr::Block { terms, expr } => {
-                let local_env = Some(LocalEnv::extend(local_env.clone()));
-                for e in terms {
-                    self.eval_expr(e, &local_env, current_module)?;
-                }
-                if let Some(e) = expr {
-                    self.eval_expr(e, &local_env, current_module)
-                } else {
-                    Ok(Value::null())
-                }
-            }
+            Expr::Do(block) => self.eval_block(block, local_env, current_module),
             Expr::Binop { lhs, op, rhs } => {
                 let lhs = self.eval_expr(lhs, local_env, current_module)?;
                 let rhs = self.eval_expr(rhs, local_env, current_module)?;
@@ -325,10 +321,10 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 let cond = self.eval_expr(cond, local_env, current_module)?;
                 let cond = (&cond).try_into()?;
                 let value = if cond {
-                    self.eval_expr(th, local_env, current_module)?
+                    self.eval_block(th, local_env, current_module)?
                 } else {
                     el.as_ref()
-                        .map(|el| self.eval_expr(el, local_env, current_module))
+                        .map(|el| self.eval_block(el, local_env, current_module))
                         .unwrap_or_else(|| Ok(Value::null()))?
                 };
                 Ok(value)
@@ -351,7 +347,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                     };
                     let env = LocalEnv::extend(local_env.clone());
                     LocalEnv::bind(&env, name.clone(), next_value.clone())?;
-                    self.eval_expr(body, &Some(env), current_module)?;
+                    self.eval_block(body, &Some(env), current_module)?;
                 }
                 Ok(Value::null())
             }
@@ -383,6 +379,24 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 let module = self.load_module(&ModulePath::new((**content).to_owned()))?;
                 Ok(module.pub_object().clone())
             }
+        }
+    }
+
+    fn eval_block(
+        &mut self,
+        block: &Block,
+        local_env: &Option<LocalEnvRef>,
+        current_module: &Gc<Module>,
+    ) -> EvalResult {
+        let Block { terms, expr } = block;
+        let local_env = Some(LocalEnv::extend(local_env.clone()));
+        for e in terms {
+            self.eval_expr(e, &local_env, current_module)?;
+        }
+        if let Some(e) = expr {
+            self.eval_expr(e, &local_env, current_module)
+        } else {
+            Ok(Value::null())
         }
     }
 

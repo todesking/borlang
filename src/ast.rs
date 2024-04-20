@@ -66,13 +66,19 @@ pub struct ArrayItem {
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
 pub enum ObjItem {
-    #[serde(rename = "obj_item_kv")]
-    Kv {
-        name: Ident,
-        expr: Option<Box<Expr>>,
-    },
+    #[serde(rename = "obj_item_const")]
+    Const { key: Ident, expr: Option<Box<Expr>> },
+    #[serde(rename = "obj_item_dyn")]
+    Dyn { key: Box<Expr>, expr: Box<Expr> },
     #[serde(rename = "obj_item_spread")]
     Spread(Box<Expr>),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
+#[serde(rename = "block")]
+pub struct Block {
+    pub terms: Vec<Expr>,
+    pub expr: Option<Box<Expr>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
@@ -92,11 +98,8 @@ pub enum Expr {
     Var(Ident),
     #[serde(rename = "expr_app")]
     App { expr: Box<Expr>, args: Vec<Expr> },
-    #[serde(rename = "expr_block")]
-    Block {
-        terms: Vec<Expr>,
-        expr: Option<Box<Expr>>,
-    },
+    #[serde(rename = "expr_do")]
+    Do(Block),
     #[serde(rename = "expr_let")]
     Let { name: LetPattern, expr: Box<Expr> },
     #[serde(rename = "expr_reassign")]
@@ -104,14 +107,14 @@ pub enum Expr {
     #[serde(rename = "expr_if")]
     If {
         cond: Box<Expr>,
-        th: Box<Expr>,
-        el: Option<Box<Expr>>,
+        th: Block,
+        el: Option<Block>,
     },
     #[serde(rename = "expr_for")]
     For {
         name: Ident,
         target: Box<Expr>,
-        body: Box<Expr>,
+        body: Block,
     },
     #[serde(rename = "expr_fun")]
     Fun { params: Vec<Ident>, expr: Box<Expr> },

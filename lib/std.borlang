@@ -4,10 +4,10 @@ pub let Array = {
   prototype: {
     len: intrinsic("array_len"),
     push: intrinsic("array_push"),
-    iterator: fn (self) => ({
+    iterator: fn (self) => {
       self,
       index: 0,
-      next: fn (self) => {
+      next: fn (self) => do {
         if self.index < self.self.len() {
           let x = self.self[self.index];
           self.index = self.index + 1;
@@ -16,6 +16,6 @@ pub let Array = {
           []
         }
       }
-    })
+    }
   }
 };

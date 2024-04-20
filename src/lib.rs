@@ -36,7 +36,7 @@ macro_rules! object_value {
         object_value!(@impl $obj, $($($rest)*)?)
     }};
     (@impl $obj:ident, [sym $name:literal] : $value:expr $(, $($rest:tt)*)?) => {{
-        $obj.insert($crate::value::ObjectKey::Sym(std::rc::Rc::new(stringify!($name).to_owned())), $value.into());
+        $obj.insert($crate::value::ObjectKey::Sym(std::rc::Rc::new($name.to_owned())), $value.into());
         object_value!(@impl $obj, $($($rest)*)?)
     }};
     (@impl $obj:ident,) => {
@@ -180,24 +180,24 @@ mod test {
     }
 
     #[test]
-    fn block() {
-        assert_eval_ok!("{1}", 1);
-        assert_eval_ok!("{1;}", Value::null());
-        assert_eval_ok!("{1; 2}", 2);
-        assert_eval_ok!("{1; 2;}", Value::null());
+    fn do_block() {
+        assert_eval_ok!("do {1}", 1);
+        assert_eval_ok!("do {1;}", Value::null());
+        assert_eval_ok!("do {1; 2}", 2);
+        assert_eval_ok!("do {1; 2;}", Value::null());
     }
 
     #[test]
     fn var() {
         assert_eval_err!("a", EvalError::NameNotFound("a".into()));
-        assert_eval_ok!("{let a = 123; let b = 456; a}", 123);
+        assert_eval_ok!("do {let a = 123; let b = 456; a}", 123);
     }
 
     #[test]
     fn var_name_conflict() {
         // local
         assert_eval_err!(
-            "{let a = 1; let a = 2; a}",
+            "do {let a = 1; let a = 2; a}",
             EvalError::NameDefined("a".into())
         );
         // global
@@ -209,11 +209,11 @@ mod test {
 
     #[test]
     fn var_reassign() {
-        assert_eval_ok!("{let a = 1; a = 2; a}", 2);
-        assert_eval_ok!("{let a = 1; {a = 2}; a}", 2);
-        assert_eval_ok!("{let a = 1; {let a = 999; a = 2}; a}", 1);
+        assert_eval_ok!("do {let a = 1; a = 2; a}", 2);
+        assert_eval_ok!("do {let a = 1; do {a = 2}; a}", 2);
+        assert_eval_ok!("do {let a = 1; do {let a = 999; a = 2}; a}", 1);
 
-        assert_eval_err!("{let a = 1; b = 2}", EvalError::NameNotFound("b".into()));
+        assert_eval_err!("do {let a = 1; b = 2}", EvalError::NameNotFound("b".into()));
         assert_eval_err!(["let a = 1", "b = 2"], EvalError::NameNotFound("b".into()));
     }
 
@@ -277,18 +277,18 @@ mod test {
 
     #[test]
     fn function() {
-        assert_eval_ok!("{let f = fn() => 123; f()}", 123);
+        assert_eval_ok!("do {let f = fn() => 123; f()}", 123);
         assert_eval_ok!("(fn(x) => x + 1)(100)", 101);
         assert_eval_ok!(
-            "{
+            "do {
                 let f = fn(x) => fn(y) => x + y;
                 let add1 = f(1);
                 add1(99)
             }",
             100
         );
-        assert_eval_ok!("{ let x = 10; (fn() => x)() }", 10);
-        assert_eval_ok!("{ let x = 10; (fn(x) => x)(20) }", 20);
+        assert_eval_ok!("do { let x = 10; (fn() => x)() }", 10);
+        assert_eval_ok!("do { let x = 10; (fn(x) => x)(20) }", 20);
         assert_eval_ok!("(fn(x,y,) => x + y)(1,2)", 3);
         assert_eval_ok!("(fn() => 42)()", 42);
         assert_eval_err!(
@@ -360,8 +360,14 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn obj_prop_dyn_sym() {
+        let (mut rt, m) = new_rt();
+        eval_program(&mut rt, &m, "sym a; let o = {[a]: 1};").unwrap();
+        assert_eq!(eval_expr(&mut rt, &m, "o.[a]").unwrap(), Value::int(1),);
+    }
+
+    #[test]
+    fn obj_literal_dyn_key() {
         let (mut rt, m) = new_rt();
         eval_program(&mut rt, &m, "sym a; let o = {[a]: 1};").unwrap();
         assert_eq!(

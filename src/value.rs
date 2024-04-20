@@ -120,6 +120,14 @@ impl Value {
         self.get_object_prop(ObjectKey::Sym(Rc::new(prop.into())))
     }
 
+    pub fn to_object_key(&self) -> EvalResult<ObjectKey> {
+        match self {
+            Value::Atom(AtomValue::Str(s)) => Ok(ObjectKey::Str(s.clone())),
+            Value::Atom(AtomValue::Sym(s)) => Ok(ObjectKey::Sym(s.clone())),
+            _ => Err(EvalError::type_error("String|Symbol", self.clone())),
+        }
+    }
+
     pub fn is_null(&self) -> bool {
         matches!(self, Value::Atom(AtomValue::Null))
     }
