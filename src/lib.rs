@@ -258,8 +258,22 @@ mod test {
     }
 
     #[test]
-    #[ignore]
-    fn object_assign_dyn() {}
+    fn object_assign_dyn() {
+        let (mut rt, m) = new_rt();
+        eval_program(
+            &mut rt,
+            &m,
+            r#"
+            sym s;
+            let o = {a: 1};
+        "#,
+        )
+        .unwrap();
+        assert_eq!(
+            eval_expr(&mut rt, &m, r#"do { o.["a"] = 2; o.[s] = 99; o}"#),
+            Ok(object_value! {a: 2, [sym "__test__:s"]: 99}.into())
+        );
+    }
 
     #[test]
     fn obj_spread() {
