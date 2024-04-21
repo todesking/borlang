@@ -29,6 +29,8 @@ pub enum EvalError {
     NumericRange,
     #[error(transparent)]
     LoadError(LoadError),
+    #[error("Exception: data={data}")]
+    Exception { data: Value },
 }
 impl EvalError {
     pub fn name_not_found<S: Into<String>>(name: S) -> Self {

@@ -575,4 +575,20 @@ mod test {
             &Value::object(object_value! {public_sym: Value::sym("__test__:public_sym")})
         );
     }
+
+    #[test]
+    fn throw() {
+        assert_eval_err!("throw(123)", EvalError::Exception { data: 123.into() });
+    }
+
+    #[test]
+    fn catch() {
+        assert_eval_ok!(
+            [
+                "let err = fn(e) => throw(e)",
+                "do { err(123) } catch e => e"
+            ],
+            123
+        );
+    }
 }

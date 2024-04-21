@@ -119,7 +119,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
         Ok(m)
     }
     fn import_prelude(&mut self, module: &Gc<Module>) -> EvalResult<()> {
-        if module.path.as_ref() == "std/prelude" {
+        if matches!(module.path.as_ref(), "std/prelude" | "std/internal") {
             return Ok(());
         }
         let prelude = self.load_module(&ModulePath::new("std/prelude"))?;
@@ -392,6 +392,18 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 let module = self.load_module(&ModulePath::new((**content).to_owned()))?;
                 Ok(module.pub_object().clone())
             }
+            Expr::Catch {
+                expr,
+                name,
+                catch_expr,
+            } => match self.eval_expr(expr, local_env, current_module) {
+                Err(EvalError::Exception { data }) => {
+                    let local_env = LocalEnv::extend(local_env.clone());
+                    LocalEnv::bind(&local_env, name.clone(), data.clone())?;
+                    self.eval_expr(catch_expr, &Some(local_env), current_module)
+                }
+                other => other,
+            },
         }
     }
 

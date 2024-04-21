@@ -90,6 +90,13 @@ pub fn register_intrinsics<L: ModuleLoader>(rt: &mut RuntimeContext<L>) {
         Ok((-v).into())
     });
 
+    intrinsic!(throw, args, {
+        EvalError::check_argument_len(1, args.len())?;
+        Err(EvalError::Exception {
+            data: args[0].clone(),
+        })
+    });
+
     intrinsic!(intrinsic, args, {
         EvalError::check_argument_len(1, args.len())?;
         Ok(Value::intrinsic(String::try_from(&args[0])?))

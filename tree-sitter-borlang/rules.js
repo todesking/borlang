@@ -43,6 +43,7 @@ const common_rules = {
     $.expr_prop_opt,
     $.expr_index,
     $.expr_import,
+    $.expr_catch,
   ),
   expr_int: _ => /[0-9]+/,
   expr_str: $ => seq(
@@ -196,6 +197,13 @@ const common_rules = {
     'import',
     $.expr_str
   ),
+  expr_catch: $ => prec.left(1, seq(
+    field('expr', $._expr),
+    'catch',
+    field('name', $.ident),
+    '=>',
+    field('catch_expr', $._expr),
+  )),
   ident: _ => /[A-Za-z_][a-z0-9_]*/,
   op_plus: _ => '+',
   op_minus: _ => '-',

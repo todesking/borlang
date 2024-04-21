@@ -137,6 +137,12 @@ pub enum Expr {
     Negate { expr: Box<Expr> },
     #[serde(rename = "expr_import")]
     Import(ExprStr),
+    #[serde(rename = "expr_catch")]
+    Catch {
+        expr: Box<Expr>,
+        name: Ident,
+        catch_expr: Box<Expr>,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
