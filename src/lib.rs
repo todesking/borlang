@@ -321,6 +321,13 @@ mod test {
     }
 
     #[test]
+    fn bool_not() {
+        assert_eval_ok!("!true", false);
+        assert_eval_ok!("!false", true);
+        assert_eval_err!("!0", EvalError::type_error("Bool", 0));
+    }
+
+    #[test]
     fn op_eq() {
         assert_eval_ok!("1 == 1", true);
         assert_eval_ok!("1 == 2", false);

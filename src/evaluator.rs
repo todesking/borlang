@@ -255,6 +255,10 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 let v = self.eval_expr(expr, local_env, current_module)?;
                 self.eval_app(&f, &[v])
             }
+            Expr::Not { expr } => {
+                let v = self.eval_expr(expr, local_env, current_module)?;
+                Ok(Value::bool(!bool::try_from(&v)?))
+            }
             Expr::App { expr: f, args } => match &**f {
                 Expr::Prop { expr, prop } => {
                     let this = self.eval_expr(expr, local_env, current_module)?;

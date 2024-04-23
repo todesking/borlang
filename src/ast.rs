@@ -135,6 +135,8 @@ pub enum Expr {
     },
     #[serde(rename = "expr_neg")]
     Negate { expr: Box<Expr> },
+    #[serde(rename = "expr_not")]
+    Not { expr: Box<Expr> },
     #[serde(rename = "expr_import")]
     Import(ExprStr),
     #[serde(rename = "expr_catch")]
