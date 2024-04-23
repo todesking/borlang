@@ -64,6 +64,10 @@ impl Repl {
         match ast {
             Err(err) => {
                 println!("Parse error: {:?}", err);
+                let errors = err.error_locations();
+                if !errors.is_empty() {
+                    println!("{}", err.highlight_error_locations(line));
+                }
             }
             Ok(ast) => match self.ctx.eval_expr_in_module(&ast, &self.module) {
                 Ok(value) => {
