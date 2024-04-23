@@ -1,0 +1,21 @@
+pub let assert = fn (cond, msg) => if cond { } else { throw({type: "AssertionError", message: msg}) };
+
+pub let assert_throws = fn (expr, check) => do {
+  let thrown = false;
+  let expr = null;
+  expr() catch e => do {
+    if check(e) {
+      return;
+    } else {
+      assert(false, "wrong exception thrown");
+    }
+  };
+  assert(false, "exception not thrown");
+};
+
+pub let assert_eq = fn (lhs, rhs) => do {
+  if lhs == rhs {
+  } else {
+    throw(false, "not eq")
+  }
+};

@@ -1,0 +1,6 @@
+let {assert_eq} = import "std/assert";
+
+let a = 1;
+
+let init = fn () => {
+};
