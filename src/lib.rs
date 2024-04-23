@@ -70,7 +70,10 @@ mod test {
     use crate::module::ModulePath;
     use crate::value::ObjectKey;
 
-    use self::module::{FsModuleLoader, Module, ModuleLoader};
+    use self::{
+        module::{FsModuleLoader, Module, ModuleLoader},
+        parser::ParseError,
+    };
 
     use super::*;
     use gc::Gc;
@@ -79,6 +82,27 @@ mod test {
     #[ctor::ctor]
     fn before_all() {
         color_backtrace::install();
+    }
+
+    fn parse_expr_or_die(src: &str) -> Expr {
+        match parse_expr(src) {
+            Ok(expr) => expr,
+            Err(err) => parse_error(src, &err),
+        }
+    }
+    fn parse_program_or_die(src: &str) -> Program {
+        match parse_program(src) {
+            Ok(expr) => expr,
+            Err(err) => parse_error(src, &err),
+        }
+    }
+
+    fn parse_error(src: &str, err: &ParseError) -> ! {
+        let locs = err.error_locations();
+        if locs.is_empty() {
+            panic!("{err}");
+        }
+        panic!("Parse error {err}\n{}", err.highlight_error_locations(src));
     }
 
     macro_rules! assert_eval_ok {
@@ -101,11 +125,11 @@ mod test {
             assert_eval_impl!(@ctx ctx, module, [$($es),+], $expected, $unwrap);
         };
         (@ctx $ctx:ident, $module:ident, [$e1:literal, $($es:literal),+], $expected:expr, $unwrap:ident) => {
-            $ctx.eval_expr_in_module(&parse_expr($e1).unwrap(), &$module).unwrap();
+            $ctx.eval_expr_in_module(&parse_expr_or_die($e1), &$module).unwrap();
             assert_eval_impl!(@ctx $ctx, $module, [$($es),+], $expected, $unwrap);
         };
         (@ctx $ctx:ident, $module:ident, [$e1:literal], $expected:expr, $unwrap:ident) => {
-            assert_eq!($ctx.eval_expr_in_module(&parse_expr($e1).unwrap(), &$module).$unwrap(), $expected.into());
+            assert_eq!($ctx.eval_expr_in_module(&parse_expr_or_die($e1), &$module).$unwrap(), $expected.into());
         };
     }
 
@@ -122,7 +146,7 @@ mod test {
         module: &Gc<Module>,
         src: &'static str,
     ) -> EvalResult<()> {
-        let program = parse_program(src).unwrap();
+        let program = parse_program_or_die(src);
         rt.eval_program_in_module(&program, module)
     }
 
@@ -131,7 +155,7 @@ mod test {
         module: &Gc<Module>,
         src: &'static str,
     ) -> EvalResult {
-        let program = parse_expr(src).unwrap();
+        let program = parse_expr_or_die(src);
         rt.eval_expr_in_module(&program, module)
     }
 
@@ -417,15 +441,15 @@ mod test {
     #[test]
     fn rebind_global() {
         let (mut rt, m) = new_rt();
-        rt.eval_expr_in_module(&parse_expr("let a = 1").unwrap(), &m)
+        rt.eval_expr_in_module(&parse_expr_or_die("let a = 1"), &m)
             .unwrap();
         assert_eq!(
-            rt.eval_expr_in_module(&parse_expr("let a = 1").unwrap(), &m),
+            rt.eval_expr_in_module(&parse_expr_or_die("let a = 1"), &m),
             Err(EvalError::NameDefined("a".into()))
         );
         rt.allow_rebind_global(true);
         assert_eq!(
-            rt.eval_expr_in_module(&parse_expr("let a = 1").unwrap(), &m),
+            rt.eval_expr_in_module(&parse_expr_or_die("let a = 1"), &m),
             Ok(Value::null()),
         );
     }
@@ -490,11 +514,11 @@ mod test {
         rt.eval_program_in_module(&parse_program("pub let a = 1; let b = 2;").unwrap(), &m)
             .unwrap();
         assert_eq!(
-            rt.eval_expr_in_module(&parse_expr("a").unwrap(), &m),
+            rt.eval_expr_in_module(&parse_expr_or_die("a"), &m),
             Ok(Value::int(1))
         );
         assert_eq!(
-            rt.eval_expr_in_module(&parse_expr("b").unwrap(), &m),
+            rt.eval_expr_in_module(&parse_expr_or_die("b"), &m),
             Ok(Value::int(2))
         );
         assert_eq!(m.pub_object(), &Value::from(object_value! {a: 1}));
@@ -510,7 +534,7 @@ mod test {
         )
         .unwrap();
         assert_eq!(
-            rt.eval_expr_in_module(&parse_expr("prelude.true").unwrap(), &m)
+            rt.eval_expr_in_module(&parse_expr_or_die("prelude.true"), &m)
                 .unwrap(),
             Value::bool(true)
         );

@@ -10,6 +10,45 @@ pub enum ParseError {
     #[error(transparent)]
     SerdeError(serde_tree_sitter::DeserializeError),
 }
+impl ParseError {
+    pub fn error_locations(&self) -> Vec<tree_sitter::Range> {
+        match self {
+            Self::SerdeError(serde_tree_sitter::DeserializeError::TreeSitterError(ranges)) => {
+                ranges.clone()
+            }
+            _ => vec![],
+        }
+    }
+    pub fn highlight_error_locations(&self, src: &str) -> String {
+        let errors = self.error_locations();
+        let mut out = String::new();
+        let lines = src.split('\n');
+        for (l, row) in lines.zip(0..) {
+            out.push_str(&format!("{:>04} ", row + 1));
+            out.push_str(l);
+            out.push('\n');
+            let mut annot = String::new();
+            for (_, col) in l.chars().zip(0..) {
+                let has_error = errors.iter().any(|e| {
+                    let after_start = e.start_point.row <= row && e.start_point.column <= col;
+                    let before_end = row <= e.end_point.row && col <= e.end_point.column;
+                    after_start && before_end
+                });
+                if has_error {
+                    annot.push('~');
+                } else {
+                    annot.push(' ');
+                }
+            }
+            if !annot.chars().all(|c| c == ' ') {
+                out.push_str("     ");
+                out.push_str(&annot);
+                out.push('\n');
+            }
+        }
+        out
+    }
+}
 
 pub fn parse_program(src: &str) -> Result<Program, ParseError> {
     let language = parser_impl::language_program();
