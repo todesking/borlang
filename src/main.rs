@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use borlang::{
-    module::{Module, ModulePath, NullModuleLoader},
+    module::{FsModuleLoader, Module, ModulePath},
     parse_expr, RuntimeContext,
 };
 use gc::Gc;
@@ -35,13 +35,13 @@ fn repl_main() -> Result<i32, Box<dyn Error>> {
 }
 
 struct Repl {
-    ctx: RuntimeContext<NullModuleLoader>,
+    ctx: RuntimeContext<FsModuleLoader>,
     module: Gc<Module>,
 }
 
 impl Repl {
     fn new() -> Repl {
-        let mut ctx = RuntimeContext::new(NullModuleLoader);
+        let mut ctx = RuntimeContext::with_paths(vec!["lib"]);
         let module = ctx.new_module(ModulePath::new("__repl__")).unwrap();
         let mut repl = Repl { ctx, module };
         repl.ctx.allow_rebind_global(true);
