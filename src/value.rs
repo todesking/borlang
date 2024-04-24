@@ -1,4 +1,4 @@
-use crate::{ast::Ident, evaluator::EvalResult, module::Module, EvalError, Expr};
+use crate::{ast::Ident, module::Module, EvalError, EvalResult, Expr};
 use gc::{Finalize, Gc, GcCell, Trace};
 use std::{collections::HashMap, fmt::Write, rc::Rc};
 

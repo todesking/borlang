@@ -1,9 +1,9 @@
 pub mod ast;
 pub mod eval_error;
-pub mod evaluator;
 pub mod intrinsic;
 pub mod module;
 pub mod parser;
+pub mod runtime;
 pub mod value;
 
 mod parser_impl;
@@ -11,9 +11,9 @@ mod parser_impl;
 pub use ast::Expr;
 pub use ast::Program;
 pub use eval_error::EvalError;
-pub use evaluator::EvalResult;
-pub use evaluator::RuntimeContext;
 pub use parser::{parse_expr, parse_program};
+pub use runtime::EvalResult;
+pub use runtime::RuntimeContext;
 pub use value::Value;
 
 #[macro_export]
