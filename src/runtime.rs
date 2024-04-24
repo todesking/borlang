@@ -30,15 +30,14 @@ use std::rc::Rc;
 pub type EvalResult<T = Value> = Result<T, EvalError>;
 pub type IntrinsicFn = dyn Fn(&[Value]) -> EvalResult;
 
-#[derive(Default)]
 pub struct Prototype {
-    null: OnceCell<ObjectValueRef>,
-    int: OnceCell<ObjectValueRef>,
-    bool: OnceCell<ObjectValueRef>,
-    string: OnceCell<ObjectValueRef>,
-    symbol: OnceCell<ObjectValueRef>,
-    function: OnceCell<ObjectValueRef>,
-    array: OnceCell<ObjectValueRef>,
+    null: ObjectValueRef,
+    int: ObjectValueRef,
+    bool: ObjectValueRef,
+    string: ObjectValueRef,
+    symbol: ObjectValueRef,
+    function: ObjectValueRef,
+    array: ObjectValueRef,
 }
 
 pub struct RuntimeContext<Loader: ModuleLoader> {
@@ -46,7 +45,7 @@ pub struct RuntimeContext<Loader: ModuleLoader> {
     modules: HashMap<ModulePath, Gc<Module>>,
     intrinsics: HashMap<String, fn(&[Value]) -> EvalResult>,
     allow_rebind_global: bool,
-    proto: Prototype,
+    proto: OnceCell<Prototype>,
 }
 
 impl RuntimeContext<FsModuleLoader> {
@@ -64,7 +63,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             modules: Default::default(),
             intrinsics: Default::default(),
             allow_rebind_global: false,
-            proto: Default::default(),
+            proto: OnceCell::new(),
         };
 
         register_intrinsics(&mut rt);
@@ -82,21 +81,17 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 .get_object_prop_str("prototype")?
                 .try_into()
         }
-        macro_rules! set_proto {
-            ($field:ident, $name:literal) => {
-                rt.proto
-                    .$field
-                    .set(get_proto(&std, $name)?)
-                    .unwrap_or_else(|_| unreachable!());
-            };
-        }
-        set_proto!(null, "Null");
-        set_proto!(int, "Int");
-        set_proto!(bool, "Bool");
-        set_proto!(string, "String");
-        set_proto!(symbol, "Symbol");
-        set_proto!(function, "Function");
-        set_proto!(array, "Array");
+        rt.proto
+            .set(Prototype {
+                null: get_proto(&std, "Null")?,
+                int: get_proto(&std, "Int")?,
+                bool: get_proto(&std, "Bool")?,
+                string: get_proto(&std, "String")?,
+                symbol: get_proto(&std, "Symbol")?,
+                function: get_proto(&std, "Function")?,
+                array: get_proto(&std, "Array")?,
+            })
+            .unwrap_or_else(|_| unreachable!());
 
         Ok(rt)
     }
@@ -586,21 +581,26 @@ impl<L: ModuleLoader> RuntimeContext<L> {
         value: &Value,
         f: F,
     ) -> EvalResult<T> {
-        let proto = match value {
-            Value::Int(_) => &self.proto.int,
-            Value::Bool(_) => &self.proto.bool,
-            Value::Null => &self.proto.null,
-            Value::Str(_) => &self.proto.string,
-            Value::Sym(_) => &self.proto.symbol,
-            Value::Intrinsic(_) => &self.proto.function,
-            Value::Ref(RefValue::Array(_)) => &self.proto.array,
-            Value::Ref(RefValue::Fun { .. }) => &self.proto.function,
-            Value::Ref(RefValue::Object(obj)) => {
-                let obj = (**obj).borrow();
-                return f(&obj);
+        let Some(proto) = self.proto.get() else {
+            match value {
+                Value::Ref(RefValue::Object(obj)) => return f(&obj.borrow()),
+                _ => panic!("initialization-time non-object property access"),
             }
         };
-        f(&(**proto.get().unwrap()).borrow())
+        let proto = match value {
+            Value::Int(_) => &proto.int,
+            Value::Bool(_) => &proto.bool,
+            Value::Null => &proto.null,
+            Value::Str(_) => &proto.string,
+            Value::Sym(_) => &proto.symbol,
+            Value::Intrinsic(_) => &proto.function,
+            Value::Ref(RefValue::Array(_)) => &proto.array,
+            Value::Ref(RefValue::Fun { .. }) => &proto.function,
+            Value::Ref(RefValue::Object(obj)) => {
+                return f(&obj.borrow());
+            }
+        };
+        f(&proto.borrow())
     }
     fn prop_spec_to_object_key(
         &mut self,
