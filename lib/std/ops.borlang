@@ -1,0 +1,12 @@
+pub sym op_plus;
+pub sym op_minus;
+pub sym op_mul;
+pub sym op_mod;
+pub sym op_gt;
+pub sym op_ge;
+pub sym op_lt;
+pub sym op_le;
+pub sym op_eq;
+pub sym op_ne;
+pub sym op_negate;
+pub sym op_not;

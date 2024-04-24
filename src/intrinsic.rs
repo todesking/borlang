@@ -61,14 +61,14 @@ pub fn register_intrinsics<L: ModuleLoader>(rt: &mut RuntimeContext<L>) {
         }};
     }
 
-    intrinsic_binop!(op_plus, i32, |lhs, rhs| lhs + rhs);
-    intrinsic_binop!(op_minus, i32, |lhs, rhs| lhs - rhs);
-    intrinsic_binop!(op_mul, i32, |lhs, rhs| lhs * rhs);
-    intrinsic_binop!(op_mod, i32, |lhs, rhs| lhs % rhs);
-    intrinsic_binop!(op_gt, i32, |lhs, rhs| lhs > rhs);
-    intrinsic_binop!(op_ge, i32, |lhs, rhs| lhs >= rhs);
-    intrinsic_binop!(op_lt, i32, |lhs, rhs| lhs < rhs);
-    intrinsic_binop!(op_le, i32, |lhs, rhs| lhs <= rhs);
+    intrinsic_binop!(int_add, i32, |lhs, rhs| lhs + rhs);
+    intrinsic_binop!(int_sub, i32, |lhs, rhs| lhs - rhs);
+    intrinsic_binop!(int_mul, i32, |lhs, rhs| lhs * rhs);
+    intrinsic_binop!(int_mod, i32, |lhs, rhs| lhs % rhs);
+    intrinsic_binop!(int_gt, i32, |lhs, rhs| lhs > rhs);
+    intrinsic_binop!(int_ge, i32, |lhs, rhs| lhs >= rhs);
+    intrinsic_binop!(int_lt, i32, |lhs, rhs| lhs < rhs);
+    intrinsic_binop!(int_le, i32, |lhs, rhs| lhs <= rhs);
 
     macro_rules! intrinsic_binop_any {
         ($name:ident, |$lhs:ident, $rhs:ident| $body:expr) => {

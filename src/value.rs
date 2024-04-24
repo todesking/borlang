@@ -1,10 +1,6 @@
 use crate::{ast::Ident, evaluator::EvalResult, module::Module, EvalError, Expr};
 use gc::{Finalize, Gc, GcCell, Trace};
-use std::{
-    collections::HashMap,
-    fmt::{Display, Write},
-    rc::Rc,
-};
+use std::{collections::HashMap, fmt::Write, rc::Rc};
 
 #[derive(Debug, PartialEq, Eq, Clone, Finalize)]
 pub enum Value {
@@ -133,7 +129,7 @@ impl Value {
     }
 }
 
-impl Display for Value {
+impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Value::Ref(ref_value) => match &**ref_value {
@@ -352,7 +348,7 @@ impl LocalEnv {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Finalize)]
+#[derive(PartialEq, Eq, Clone, Finalize)]
 pub enum RefValue {
     Fun {
         params: Vec<Ident>,
@@ -366,6 +362,24 @@ pub enum RefValue {
 impl From<RefValue> for Value {
     fn from(value: RefValue) -> Self {
         Value::Ref(Gc::new(value))
+    }
+}
+impl std::fmt::Debug for RefValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Fun {
+                params,
+                body,
+                local_env: _,
+                current_module: _,
+            } => f
+                .debug_struct("Fun")
+                .field("params", params)
+                .field("body", body)
+                .finish_non_exhaustive(),
+            Self::Array(a) => f.debug_tuple("Array").field(a).finish(),
+            Self::Object(o) => f.debug_tuple("Object").field(o).finish(),
+        }
     }
 }
 
@@ -401,7 +415,7 @@ impl ObjectKey {
         Self::Str(Rc::new(name.into()))
     }
 }
-impl Display for ObjectKey {
+impl std::fmt::Display for ObjectKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Str(s) => s.fmt(f),
@@ -413,7 +427,7 @@ impl Display for ObjectKey {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Finalize)]
+#[derive(PartialEq, Eq, Clone, Finalize)]
 pub struct ObjectValue {
     names: Vec<ObjectKey>,
     values: HashMap<ObjectKey, Value>,
@@ -426,6 +440,16 @@ impl Default for ObjectValue {
 impl From<ObjectValue> for Value {
     fn from(value: ObjectValue) -> Self {
         RefValue::Object(GcCell::new(value)).into()
+    }
+}
+impl std::fmt::Debug for ObjectValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut f = &mut f.debug_struct("ObjectValue");
+        for (k, v) in self.iter() {
+            f = f.field(&format!("{k}"), v);
+        }
+        f.finish()?;
+        Ok(())
     }
 }
 
@@ -444,6 +468,11 @@ impl ObjectValue {
     }
     pub fn get(&self, name: &ObjectKey) -> Option<&Value> {
         self.values.get(name)
+    }
+    pub fn get_or_err(&self, name: &ObjectKey) -> EvalResult {
+        self.get(name)
+            .ok_or_else(|| EvalError::property_not_found(name.clone()))
+            .cloned()
     }
     pub fn iter(&self) -> impl Iterator<Item = (&ObjectKey, &Value)> {
         ObjectIter {
@@ -477,7 +506,7 @@ unsafe impl Trace for ObjectValue {
         }
     });
 }
-impl Display for ObjectValue {
+impl std::fmt::Display for ObjectValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("{")?;
         let mut iter = self.names.iter();

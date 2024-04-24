@@ -98,6 +98,10 @@ impl Module {
     pub fn lookup(&self, name: &str) -> Option<Value> {
         self.values.borrow().get(name).cloned()
     }
+    pub fn lookup_or_err(&self, name: &str) -> EvalResult {
+        self.lookup(name)
+            .ok_or_else(|| EvalError::name_not_found(name))
+    }
     pub fn reassign(&self, name: String, value: Value) -> EvalResult<()> {
         if !self.is_bound(&name) {
             return Err(EvalError::NameNotFound(name));

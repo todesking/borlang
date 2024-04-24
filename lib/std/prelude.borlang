@@ -1,6 +1,5 @@
-let {intrinsic} = import "std/internal";
+let {intrinsic} = import "_internal";
+pub let {true, false} = import "_internal";
 
-pub let true = 1 == 1;
-pub let false = 1 != 1;
 pub let null = do {};
 pub let throw = intrinsic("throw");

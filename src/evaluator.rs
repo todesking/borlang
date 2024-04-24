@@ -62,14 +62,18 @@ impl<L: ModuleLoader> RuntimeContext<L> {
 
         register_intrinsics(&mut rt);
 
-        let std_internal = rt.new_module(ModulePath::new("std/internal"))?;
-        std_internal.bind("intrinsic", Value::intrinsic("intrinsic"), true, false)?;
+        let internal = rt.new_module(ModulePath::new("_internal"))?;
+        internal.bind("intrinsic", Value::intrinsic("intrinsic"), true, false)?;
+        internal.bind("true", Value::bool(true), true, false)?;
+        internal.bind("false", Value::bool(false), true, false)?;
+
+        rt.load_module(&ModulePath::new("std/prelude"))?;
+
         let std = rt.load_module(&ModulePath::new("std"))?;
-        *rt.array_proto.borrow_mut() = std.lookup("Array").unwrap().use_object(|o| {
-            o.get(&ObjectKey::new_str_from_str("prototype"))
-                .cloned()
-                .ok_or_else(|| unreachable!())
-        })?;
+        *rt.array_proto.borrow_mut() = std
+            .lookup("Array")
+            .unwrap()
+            .use_object(|o| o.get_or_err(&ObjectKey::new_str_from_str("prototype")))?;
         Ok(rt)
     }
 
@@ -113,7 +117,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
         Ok(m)
     }
     fn import_prelude(&mut self, module: &Gc<Module>) -> EvalResult<()> {
-        if matches!(module.path.as_ref(), "std/prelude" | "std/internal") {
+        if matches!(module.path.as_ref(), "std/prelude" | "_internal") {
             return Ok(());
         }
         let prelude = self.load_module(&ModulePath::new("std/prelude"))?;
@@ -228,7 +232,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             Expr::Binop { lhs, op, rhs } => {
                 let lhs = self.eval_expr(lhs, local_env, current_module)?;
                 let rhs = self.eval_expr(rhs, local_env, current_module)?;
-                let intrinsic_name = match &**op.0 {
+                let sym_name = match &**op.0 {
                     "+" => "op_plus",
                     "-" => "op_minus",
                     "*" => "op_mul",
@@ -241,7 +245,9 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                     "<=" => "op_le",
                     unk => panic!("Unknown binary operator: {unk}"),
                 };
-                let f = Value::intrinsic(intrinsic_name);
+                let std = self.load_module(&ModulePath::new("std/ops"))?;
+                let sym = std.lookup_or_err(sym_name)?;
+                let f = self.as_object(&lhs, |o| o.get_or_err(&sym.to_object_key()?))?;
                 self.eval_app(&f, &[lhs, rhs])
             }
             Expr::Negate { expr } => {
@@ -550,18 +556,31 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             .collect::<Result<Vec<_>, _>>()
     }
 
-    fn as_object<F: FnOnce(&ObjectValue) -> EvalResult>(&self, value: &Value, f: F) -> EvalResult {
-        match value {
-            Value::Atom(_) => f(&ObjectValue::new()),
+    fn as_object<T, F: FnOnce(&ObjectValue) -> EvalResult<T>>(
+        &mut self,
+        value: &Value,
+        f: F,
+    ) -> EvalResult<T> {
+        let std = self.load_module(&ModulePath::new("std"))?;
+        let proto_name = match value {
+            Value::Atom(AtomValue::Int(_)) => "Int",
+            Value::Atom(AtomValue::Bool(_)) => "Bool",
+            Value::Atom(AtomValue::Null) => "Null",
+            Value::Atom(AtomValue::Str(_)) => "String",
+            Value::Atom(AtomValue::Sym(_)) => "Symbol",
+            Value::Atom(AtomValue::Intrinsic(_)) => "Function",
             Value::Ref(ref_value) => match &**ref_value {
+                RefValue::Array(_) => "Array",
+                RefValue::Fun { .. } => "Function",
                 RefValue::Object(obj) => {
                     let obj = obj.borrow();
-                    f(&obj)
+                    return f(&obj);
                 }
-                RefValue::Array(_) => self.array_proto.borrow().use_object(f),
-                _ => f(&ObjectValue::new()),
             },
-        }
+        };
+        std.lookup_or_err(proto_name)?
+            .get_object_prop_str("prototype")?
+            .use_object(f)
     }
     fn prop_spec_to_object_key(
         &mut self,
@@ -582,7 +601,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
         };
         Ok(key)
     }
-    fn get_prop(&self, value: &Value, key: &ObjectKey) -> EvalResult {
+    fn get_prop(&mut self, value: &Value, key: &ObjectKey) -> EvalResult {
         self.as_object(value, |obj| {
             obj.get(key)
                 .cloned()

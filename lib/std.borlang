@@ -1,4 +1,5 @@
-let {intrinsic} = import "std/internal";
+let {intrinsic} = import "_internal";
+let ops = import "std/ops";
 
 sym Iterable_iterator;
 pub let Iterable = {
@@ -8,6 +9,40 @@ pub let Iterable = {
 sym Iterator_next;
 pub let Iterator = {
   next: Iterator_next,
+};
+
+pub let generic_equality = {
+    [ops.op_eq]: intrinsic("op_eq"),
+    [ops.op_ne]: fn (lhs, rhs) => !(lhs == rhs),
+};
+
+pub let Int = {
+  prototype: {
+    [ops.op_plus]: intrinsic("int_add"),
+    [ops.op_minus]: intrinsic("int_sub"),
+    [ops.op_mul]: intrinsic("int_mul"),
+    [ops.op_mod]: intrinsic("int_mod"),
+    [ops.op_gt]: intrinsic("int_gt"),
+    [ops.op_ge]: intrinsic("int_ge"),
+    [ops.op_lt]: intrinsic("int_lt"),
+    [ops.op_le]: intrinsic("int_le"),
+    [ops.op_negate]: intrinsic("int_negate"),
+    ..generic_equality,
+  }
+};
+
+pub let Bool = {
+  prototype: {
+    [ops.op_not]: fn (self) => if self { false } else { true },
+    ..generic_equality,
+  }
+};
+
+pub let String = {
+  prototype: {
+    [ops.op_plus]: intrinsic("string_append"),
+    ..generic_equality,
+  }
 };
 
 pub let Array = {
@@ -26,6 +61,7 @@ pub let Array = {
           []
         }
       }
-    }
+    },
+    ..generic_equality,
   }
 };
