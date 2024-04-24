@@ -4,14 +4,18 @@ use std::{collections::HashMap, fmt::Write, rc::Rc};
 
 #[derive(Debug, PartialEq, Eq, Clone, Finalize)]
 pub enum Value {
-    Atom(AtomValue),
+    Null,
+    Int(i32),
+    Intrinsic(Ident),
+    Bool(bool),
+    Str(Rc<String>),
+    Sym(Rc<String>),
     Ref(RefValue),
 }
 unsafe impl Trace for Value {
     gc::custom_trace!(this, {
-        match this {
-            Value::Atom(_) => {}
-            Value::Ref(r) => mark(r),
+        if let Value::Ref(r) = this {
+            mark(r);
         }
     });
 }
@@ -25,16 +29,16 @@ impl Value {
             .map_err(|_| EvalError::NumericRange)
     }
     pub fn bool(v: bool) -> Value {
-        v.into()
+        Value::Bool(v)
     }
     pub fn intrinsic<S: Into<Ident>>(id: S) -> Value {
-        AtomValue::Intrinsic(id.into()).into()
+        Value::Intrinsic(id.into())
     }
     pub fn null() -> Value {
-        AtomValue::Null.into()
+        Value::Null
     }
     pub fn sym<S: Into<String>>(s: S) -> Value {
-        AtomValue::Sym(Rc::new(s.into())).into()
+        Value::Sym(Rc::new(s.into()))
     }
     pub fn fun(
         params: Vec<Ident>,
@@ -60,8 +64,8 @@ impl Value {
     pub fn use_array<T, F: FnOnce(&[Value]) -> EvalResult<T>>(&self, f: F) -> EvalResult<T> {
         match self {
             Value::Ref(RefValue::Array(arr)) => {
-                    let arr = arr.borrow();
-                    f(&arr)
+                let arr = arr.borrow();
+                f(&arr)
             }
             _ => Err(EvalError::type_error("Array", self.clone())),
         }
@@ -106,14 +110,14 @@ impl Value {
 
     pub fn to_object_key(&self) -> EvalResult<ObjectKey> {
         match self {
-            Value::Atom(AtomValue::Str(s)) => Ok(ObjectKey::Str(s.clone())),
-            Value::Atom(AtomValue::Sym(s)) => Ok(ObjectKey::Sym(s.clone())),
+            Value::Str(s) => Ok(ObjectKey::Str(s.clone())),
+            Value::Sym(s) => Ok(ObjectKey::Sym(s.clone())),
             _ => Err(EvalError::type_error("String|Symbol", self.clone())),
         }
     }
 
     pub fn is_null(&self) -> bool {
-        matches!(self, Value::Atom(AtomValue::Null))
+        matches!(self, Value::Null)
     }
 }
 
@@ -121,50 +125,48 @@ impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Value::Ref(RefValue::Array(values)) => {
-                    f.write_str("[")?;
-                    let values = values.borrow();
-                    let mut iter = values.iter();
-                    if let Some(v) = iter.next() {
+                f.write_str("[")?;
+                let values = values.borrow();
+                let mut iter = values.iter();
+                if let Some(v) = iter.next() {
+                    v.fmt(f)?;
+                    for v in iter {
+                        f.write_str(", ")?;
                         v.fmt(f)?;
-                        for v in iter {
-                            f.write_str(", ")?;
-                            v.fmt(f)?;
-                        }
                     }
-                    f.write_str("]")?;
                 }
-                Value::Ref(RefValue::Object(obj)) => {
-                    obj.borrow().fmt(f)?;
-                }
-                Value::Ref(RefValue::Fun { current_module, .. }) => {
-                    f.write_str("#fun")?;
-                    f.write_str("@")?;
-                    current_module.path.fmt(f)?;
-                }
-            Value::Atom(atom_value) => match atom_value {
-                AtomValue::Bool(v) => {
-                    v.fmt(f)?;
-                }
-                AtomValue::Null => {
-                    f.write_str("null")?;
-                }
-                AtomValue::Int(v) => {
-                    v.fmt(f)?;
-                }
-                AtomValue::Intrinsic(name) => {
-                    f.write_str("#fun:")?;
-                    name.fmt(f)?;
-                }
-                AtomValue::Str(s) => {
-                    f.write_char('"')?;
-                    f.write_str(s)?;
-                    f.write_char('"')?;
-                }
-                AtomValue::Sym(s) => {
-                    f.write_char('#')?;
-                    f.write_str(s)?;
-                }
-            },
+                f.write_str("]")?;
+            }
+            Value::Ref(RefValue::Object(obj)) => {
+                obj.borrow().fmt(f)?;
+            }
+            Value::Ref(RefValue::Fun { current_module, .. }) => {
+                f.write_str("#fun")?;
+                f.write_str("@")?;
+                current_module.path.fmt(f)?;
+            }
+            Value::Bool(v) => {
+                v.fmt(f)?;
+            }
+            Value::Null => {
+                f.write_str("null")?;
+            }
+            Value::Int(v) => {
+                v.fmt(f)?;
+            }
+            Value::Intrinsic(name) => {
+                f.write_str("#fun:")?;
+                name.fmt(f)?;
+            }
+            Value::Str(s) => {
+                f.write_char('"')?;
+                f.write_str(s)?;
+                f.write_char('"')?;
+            }
+            Value::Sym(s) => {
+                f.write_char('#')?;
+                f.write_str(s)?;
+            }
         }
         Ok(())
     }
@@ -175,7 +177,7 @@ impl TryFrom<&Value> for i32 {
 
     fn try_from(value: &Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Atom(AtomValue::Int(v)) => Ok(*v),
+            Value::Int(v) => Ok(*v),
             _ => Err(EvalError::TypeError("Int".into(), value.clone())),
         }
     }
@@ -185,7 +187,7 @@ impl TryFrom<&Value> for bool {
 
     fn try_from(value: &Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Atom(AtomValue::Bool(v)) => Ok(*v),
+            Value::Bool(v) => Ok(*v),
             _ => Err(EvalError::TypeError("Bool".into(), value.clone())),
         }
     }
@@ -205,7 +207,7 @@ impl TryFrom<&Value> for String {
 
     fn try_from(value: &Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Atom(AtomValue::Str(s)) => Ok((**s).clone()),
+            Value::Str(s) => Ok((**s).clone()),
             _ => Err(EvalError::type_error("String", value.clone())),
         }
     }
@@ -215,42 +217,21 @@ impl TryFrom<Value> for ObjectKey {
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Atom(AtomValue::Sym(s)) => Ok(ObjectKey::Sym(s.clone())),
-            Value::Atom(AtomValue::Str(s)) => Ok(ObjectKey::Str(s.clone())),
+            Value::Sym(s) => Ok(ObjectKey::Sym(s.clone())),
+            Value::Str(s) => Ok(ObjectKey::Str(s.clone())),
             _ => Err(EvalError::type_error("String|Symbol", value)),
         }
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum AtomValue {
-    Null,
-    Int(i32),
-    Intrinsic(Ident),
-    Bool(bool),
-    Str(Rc<String>),
-    Sym(Rc<String>),
-}
-impl AtomValue {
-    pub fn str<S: Into<String>>(s: S) -> AtomValue {
-        AtomValue::Str(Rc::new(s.into()))
-    }
-}
-
-impl From<AtomValue> for Value {
-    fn from(value: AtomValue) -> Self {
-        Value::Atom(value)
-    }
-}
-
 impl From<i32> for Value {
     fn from(value: i32) -> Self {
-        Value::Atom(AtomValue::Int(value))
+        Value::Int(value)
     }
 }
 impl From<bool> for Value {
     fn from(value: bool) -> Self {
-        Value::Atom(AtomValue::Bool(value))
+        Value::bool(value)
     }
 }
 impl<T: Into<Value>> From<Vec<T>> for Value {
@@ -260,7 +241,7 @@ impl<T: Into<Value>> From<Vec<T>> for Value {
 }
 impl From<&str> for Value {
     fn from(value: &str) -> Self {
-        AtomValue::str(value).into()
+        Value::Str(Rc::new(value.into()))
     }
 }
 
@@ -575,6 +556,6 @@ mod test {
 
     #[test]
     fn display_intrinsic() {
-        assert_display!(AtomValue::Intrinsic("foo".into()), "#fun:foo");
+        assert_display!(Value::Intrinsic("foo".into()), "#fun:foo");
     }
 }

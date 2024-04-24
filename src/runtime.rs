@@ -13,7 +13,6 @@ use crate::module::Module;
 use crate::module::ModuleLoader;
 use crate::module::ModulePath;
 
-use crate::value::AtomValue;
 use crate::value::LocalEnv;
 use crate::value::LocalEnvRef;
 use crate::value::ObjectKey;
@@ -176,8 +175,8 @@ impl<L: ModuleLoader> RuntimeContext<L> {
         current_module: &Gc<Module>,
     ) -> EvalResult {
         match expr {
-            Expr::Int(v) => Ok(AtomValue::Int(*v).into()),
-            Expr::Str { content } => Ok(AtomValue::Str(content.clone()).into()),
+            Expr::Int(v) => Ok(Value::Int(*v)),
+            Expr::Str { content } => Ok(Value::Str(content.clone())),
             Expr::Object(items) => {
                 let mut buf = ObjectValue::new();
                 for item in items {
@@ -495,7 +494,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
 
     fn eval_app(&mut self, f: &Value, args: &[Value]) -> EvalResult {
         match f {
-            Value::Atom(AtomValue::Intrinsic(name)) => {
+            Value::Intrinsic(name) => {
                 let f = self
                     .intrinsics
                     .get(&*name.0)
@@ -503,23 +502,23 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 f(args)
             }
             Value::Ref(RefValue::Fun {
-                    params,
-                    body,
-                    local_env,
-                    current_module,
-                }) => {
-                    if params.len() != args.len() {
-                        return Err(EvalError::ArgumentLength {
-                            expected: params.len(),
-                            actual: args.len(),
-                        });
-                    }
-                    let local_env = LocalEnv::extend(local_env.clone());
-                    for (param, arg) in params.iter().zip(args.iter()) {
-                        LocalEnv::bind(&local_env, param.clone(), arg.clone())?;
-                    }
-                    self.eval_expr(body, &Some(local_env), current_module)
+                params,
+                body,
+                local_env,
+                current_module,
+            }) => {
+                if params.len() != args.len() {
+                    return Err(EvalError::ArgumentLength {
+                        expected: params.len(),
+                        actual: args.len(),
+                    });
                 }
+                let local_env = LocalEnv::extend(local_env.clone());
+                for (param, arg) in params.iter().zip(args.iter()) {
+                    LocalEnv::bind(&local_env, param.clone(), arg.clone())?;
+                }
+                self.eval_expr(body, &Some(local_env), current_module)
+            }
             _ => Err(EvalError::TypeError("Intrinsic".to_owned(), f.clone())),
         }
     }
@@ -560,18 +559,18 @@ impl<L: ModuleLoader> RuntimeContext<L> {
     ) -> EvalResult<T> {
         let std = self.load_module(&ModulePath::new("std"))?;
         let proto_name = match value {
-            Value::Atom(AtomValue::Int(_)) => "Int",
-            Value::Atom(AtomValue::Bool(_)) => "Bool",
-            Value::Atom(AtomValue::Null) => "Null",
-            Value::Atom(AtomValue::Str(_)) => "String",
-            Value::Atom(AtomValue::Sym(_)) => "Symbol",
-            Value::Atom(AtomValue::Intrinsic(_)) => "Function",
-            Value::Ref(RefValue::Array(_))=> "Array",
-            Value::Ref(RefValue::Fun{..})=> "Function",
-            Value::Ref(RefValue::Object(obj))=>{
-                    let obj = obj.borrow();
-                    return f(&obj);
-                }
+            Value::Int(_) => "Int",
+            Value::Bool(_) => "Bool",
+            Value::Null => "Null",
+            Value::Str(_) => "String",
+            Value::Sym(_) => "Symbol",
+            Value::Intrinsic(_) => "Function",
+            Value::Ref(RefValue::Array(_)) => "Array",
+            Value::Ref(RefValue::Fun { .. }) => "Function",
+            Value::Ref(RefValue::Object(obj)) => {
+                let obj = obj.borrow();
+                return f(&obj);
+            }
         };
         std.lookup_or_err(proto_name)?
             .get_object_prop_str("prototype")?
@@ -588,8 +587,8 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             PropSpec::Dyn(expr) => {
                 let name = self.eval_expr(expr, local_env, current_module)?;
                 match name {
-                    Value::Atom(AtomValue::Str(name)) => ObjectKey::Str(name.clone()),
-                    Value::Atom(AtomValue::Sym(name)) => ObjectKey::Sym(name.clone()),
+                    Value::Str(name) => ObjectKey::Str(name.clone()),
+                    Value::Sym(name) => ObjectKey::Sym(name.clone()),
                     _ => return Err(EvalError::type_error("String|Symbol", name.clone())),
                 }
             }
