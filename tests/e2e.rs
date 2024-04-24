@@ -1,4 +1,9 @@
-use borlang::{module::LoadError, parse_program, parser::ParseError, EvalError};
+use borlang::{module::LoadError, parse_program, parser::ParseError, EvalError, Expr};
+
+#[ctor::ctor]
+fn before_all() {
+    color_backtrace::install();
+}
 
 fn panic_on_parse_error(path: &str, src: &str, err: &ParseError) -> ! {
     let locs = err.error_locations();
@@ -34,4 +39,21 @@ fn test_e2e(src_path: &str) {
 
     rt.eval_program_in_module(&program, &module)
         .unwrap_or_else(|err| handle_eval_error(err));
+
+    for (k, _v) in module.values_iter() {
+        if k.starts_with("test_") {
+            rt.eval_expr_in_module(
+                &Expr::App {
+                    expr: Box::new(Expr::Var(borlang::ast::Ident::new(k.clone()))),
+                    args: vec![],
+                },
+                &module,
+            )
+            .unwrap_or_else(|err| {
+                println!("{src_path} {k} ... err");
+                handle_eval_error(err)
+            });
+            println!("{src_path} {k} ... ok");
+        }
+    }
 }

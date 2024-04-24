@@ -116,6 +116,14 @@ impl Module {
         })?;
         Ok(())
     }
+    pub fn values_iter(&self) -> impl Iterator<Item = (String, Value)> {
+        self.values
+            .borrow()
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect::<Vec<_>>()
+            .into_iter()
+    }
 }
 unsafe impl Trace for Module {
     gc::custom_trace!(this, {
