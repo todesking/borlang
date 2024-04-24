@@ -71,13 +71,34 @@ mod test {
     use crate::value::ObjectKey;
 
     use self::{
-        module::{FsModuleLoader, Module, ModuleLoader},
+        module::{FsModuleLoader, LoadError, Module, ModuleLoader},
         parser::ParseError,
     };
 
     use super::*;
     use gc::Gc;
     use pretty_assertions::assert_eq;
+
+    fn panic_on_parse_error(path: &str, src: &str, err: &ParseError) -> ! {
+        let locs = err.error_locations();
+        if locs.is_empty() {
+            panic!("{err}");
+        }
+        panic!(
+            "Parse error: {err} at {path}\nloccations={:?}\n{}",
+            err.error_locations(),
+            err.highlight_error_locations(src)
+        );
+    }
+
+    fn handle_eval_error(err: EvalError) -> ! {
+        match err {
+            EvalError::LoadError(LoadError::ParseError(path, src, err)) => {
+                panic_on_parse_error(path.to_str().unwrap(), &src, &err)
+            }
+            _ => panic!("{err}"),
+        }
+    }
 
     #[ctor::ctor]
     fn before_all() {
@@ -120,12 +141,12 @@ mod test {
             assert_eval_impl!([$actual], $expected, $unwrap);
         }};
         ([$($es:literal),+], $expected:expr, $unwrap:ident) => {
-            let mut ctx = RuntimeContext::with_paths(vec!["lib"]);
-            let module = ctx.new_module(crate::module::ModulePath::new("__test__")).unwrap();
+            let mut ctx = RuntimeContext::with_paths(vec!["lib"]).unwrap_or_else(|err| handle_eval_error(err));
+            let module = ctx.new_module(crate::module::ModulePath::new("__test__")).unwrap_or_else(|err| handle_eval_error(err));
             assert_eval_impl!(@ctx ctx, module, [$($es),+], $expected, $unwrap);
         };
         (@ctx $ctx:ident, $module:ident, [$e1:literal, $($es:literal),+], $expected:expr, $unwrap:ident) => {
-            $ctx.eval_expr_in_module(&parse_expr_or_die($e1), &$module).unwrap();
+            $ctx.eval_expr_in_module(&parse_expr_or_die($e1), &$module).unwrap_or_else(|err| handle_eval_error(err));
             assert_eval_impl!(@ctx $ctx, $module, [$($es),+], $expected, $unwrap);
         };
         (@ctx $ctx:ident, $module:ident, [$e1:literal], $expected:expr, $unwrap:ident) => {
@@ -134,7 +155,8 @@ mod test {
     }
 
     fn new_rt() -> (RuntimeContext<FsModuleLoader>, Gc<Module>) {
-        let mut ctx = RuntimeContext::with_paths(vec!["lib"]);
+        let mut ctx =
+            RuntimeContext::with_paths(vec!["lib"]).unwrap_or_else(|err| handle_eval_error(err));
         let module = ctx
             .new_module(crate::module::ModulePath::new("__test__"))
             .unwrap();
@@ -509,7 +531,8 @@ mod test {
 
     #[test]
     fn top_term_let() {
-        let mut rt = RuntimeContext::new(FsModuleLoader::new(vec![PathBuf::from("lib")]));
+        let mut rt = RuntimeContext::load(FsModuleLoader::new(vec![PathBuf::from("lib")]))
+            .unwrap_or_else(|err| handle_eval_error(err));
         let m = rt.new_module(ModulePath::new("__test__")).unwrap();
         rt.eval_program_in_module(&parse_program("pub let a = 1; let b = 2;").unwrap(), &m)
             .unwrap();

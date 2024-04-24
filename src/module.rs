@@ -164,7 +164,7 @@ pub enum LoadError {
     #[error("Module `{0}` not found")]
     NotFound(ModulePath),
     #[error("Parse error while loading {0}")]
-    ParseError(PathBuf, #[source] ParseError),
+    ParseError(PathBuf, String, #[source] ParseError),
     #[error("IO error while loading {0}")]
     IoError(PathBuf, #[source] std::io::Error),
 }
@@ -172,8 +172,8 @@ impl PartialEq for LoadError {
     fn eq(&self, other: &Self) -> bool {
         match self {
             Self::IoError(_, _) => false,
-            Self::ParseError(m1, e1) => match other {
-                Self::ParseError(m2, e2) => m1 == m2 && e1 == e2,
+            Self::ParseError(m1, s1, e1) => match other {
+                Self::ParseError(m2, s2, e2) => m1 == m2 && s1 == s2 && e1 == e2,
                 _ => false,
             },
             Self::NotFound(m1) => match other {
@@ -222,7 +222,8 @@ impl ModuleLoader for FsModuleLoader {
                     let _size = file
                         .read_to_string(&mut src)
                         .map_err(|e| LoadError::IoError(target_path.clone(), e))?;
-                    return parse_program(&src).map_err(|e| LoadError::ParseError(target_path, e));
+                    return parse_program(&src)
+                        .map_err(|e| LoadError::ParseError(target_path, src, e));
                 }
                 Err(err) => match err.kind() {
                     std::io::ErrorKind::NotFound => continue,
@@ -265,7 +266,7 @@ mod test {
         );
         assert!(matches!(
             loader.load(&ModulePath::new("syntax_error")),
-            Err(LoadError::ParseError(_, _)),
+            Err(LoadError::ParseError(_, _, _)),
         ));
     }
 }

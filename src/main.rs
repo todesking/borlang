@@ -1,8 +1,10 @@
 use std::error::Error;
 
 use borlang::{
-    module::{FsModuleLoader, Module, ModulePath},
-    parse_expr, RuntimeContext,
+    module::{FsModuleLoader, LoadError, Module, ModulePath},
+    parse_expr,
+    parser::ParseError,
+    EvalError, RuntimeContext,
 };
 use gc::Gc;
 use rustyline::error::ReadlineError;
@@ -34,6 +36,27 @@ fn repl_main() -> Result<i32, Box<dyn Error>> {
     }
 }
 
+fn panic_on_parse_error(path: &str, src: &str, err: &ParseError) -> ! {
+    let locs = err.error_locations();
+    if locs.is_empty() {
+        panic!("{err}");
+    }
+    panic!(
+        "Parse error: {err} at {path}\nloccations={:?}\n{}",
+        err.error_locations(),
+        err.highlight_error_locations(src)
+    );
+}
+
+fn handle_eval_error<T>(err: EvalError) -> T {
+    match err {
+        EvalError::LoadError(LoadError::ParseError(path, src, err)) => {
+            panic_on_parse_error(path.to_str().unwrap(), &src, &err)
+        }
+        _ => panic!("{err}"),
+    }
+}
+
 struct Repl {
     ctx: RuntimeContext<FsModuleLoader>,
     module: Gc<Module>,
@@ -41,7 +64,7 @@ struct Repl {
 
 impl Repl {
     fn new() -> Repl {
-        let mut ctx = RuntimeContext::with_paths(vec!["lib"]);
+        let mut ctx = RuntimeContext::with_paths(vec!["lib"]).unwrap_or_else(handle_eval_error);
         let module = ctx.new_module(ModulePath::new("__repl__")).unwrap();
         let mut repl = Repl { ctx, module };
         repl.ctx.allow_rebind_global(true);

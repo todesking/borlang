@@ -43,15 +43,15 @@ pub struct RuntimeContext<Loader: ModuleLoader> {
 }
 
 impl RuntimeContext<FsModuleLoader> {
-    pub fn with_paths<P: Into<PathBuf>>(paths: Vec<P>) -> Self {
-        Self::new(FsModuleLoader::new(
+    pub fn with_paths<P: Into<PathBuf>>(paths: Vec<P>) -> EvalResult<Self> {
+        Self::load(FsModuleLoader::new(
             paths.into_iter().map(|x| x.into()).collect(),
         ))
     }
 }
 
 impl<L: ModuleLoader> RuntimeContext<L> {
-    pub fn new(module_loader: L) -> Self {
+    pub fn load(module_loader: L) -> EvalResult<Self> {
         let mut rt = Self {
             module_loader,
             modules: Default::default(),
@@ -62,21 +62,15 @@ impl<L: ModuleLoader> RuntimeContext<L> {
 
         register_intrinsics(&mut rt);
 
-        let std_internal = rt.new_module(ModulePath::new("std/internal")).unwrap();
-        std_internal
-            .bind("intrinsic", Value::intrinsic("intrinsic"), true, false)
-            .unwrap();
-        let std = rt.load_module(&ModulePath::new("std")).unwrap();
-        *rt.array_proto.borrow_mut() = std
-            .lookup("Array")
-            .unwrap()
-            .use_object(|o| {
-                o.get(&ObjectKey::new_str_from_str("prototype"))
-                    .cloned()
-                    .ok_or_else(|| unreachable!())
-            })
-            .unwrap();
-        rt
+        let std_internal = rt.new_module(ModulePath::new("std/internal"))?;
+        std_internal.bind("intrinsic", Value::intrinsic("intrinsic"), true, false)?;
+        let std = rt.load_module(&ModulePath::new("std"))?;
+        *rt.array_proto.borrow_mut() = std.lookup("Array").unwrap().use_object(|o| {
+            o.get(&ObjectKey::new_str_from_str("prototype"))
+                .cloned()
+                .ok_or_else(|| unreachable!())
+        })?;
+        Ok(rt)
     }
 
     pub fn register_intrinsic<S: Into<String>>(

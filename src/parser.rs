@@ -30,8 +30,10 @@ impl ParseError {
             let mut annot = String::new();
             for (_, col) in l.chars().zip(0..) {
                 let has_error = errors.iter().any(|e| {
-                    let after_start = e.start_point.row <= row && e.start_point.column <= col;
-                    let before_end = row <= e.end_point.row && col <= e.end_point.column;
+                    let after_start = (e.start_point.row == row && e.start_point.column <= col)
+                        || (e.start_point.row < row);
+                    let before_end = (row == e.end_point.row && col <= e.end_point.column)
+                        || (e.end_point.row > row);
                     after_start && before_end
                 });
                 if has_error {
