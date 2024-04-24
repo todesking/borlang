@@ -256,13 +256,17 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             Expr::Binop { lhs, op, rhs } => {
                 let lhs = self.eval_expr(lhs, local_env, current_module)?;
                 let rhs = self.eval_expr(rhs, local_env, current_module)?;
+                if &*op.0 == "==" {
+                    return Ok(Value::bool(lhs == rhs));
+                }
+                if &*op.0 == "!=" {
+                    return Ok(Value::bool(lhs != rhs));
+                }
                 let sym_name = match &**op.0 {
                     "+" => "op_plus",
                     "-" => "op_minus",
                     "*" => "op_mul",
                     "%" => "op_mod",
-                    "==" => "op_eq",
-                    "!=" => "op_ne",
                     ">" => "op_gt",
                     ">=" => "op_ge",
                     "<" => "op_lt",
