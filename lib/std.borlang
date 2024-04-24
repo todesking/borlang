@@ -16,6 +16,11 @@ pub let generic_equality = {
     [ops.op_ne]: fn (lhs, rhs) => !(lhs == rhs),
 };
 
+pub let Null = {
+  prototype: {
+  }
+};
+
 pub let Int = {
   prototype: {
     [ops.op_plus]: intrinsic("int_add"),
@@ -43,6 +48,14 @@ pub let String = {
     [ops.op_plus]: intrinsic("string_append"),
     ..generic_equality,
   }
+};
+
+pub let Symbol = {
+  prototype: {}
+};
+
+pub let Function = {
+  prototype: {}
 };
 
 pub let Array = {

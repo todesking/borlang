@@ -9,23 +9,20 @@ use crate::ast::TopTerm;
 use crate::intrinsic::register_intrinsics;
 use crate::module::FsModuleLoader;
 use crate::module::Module;
-
 use crate::module::ModuleLoader;
 use crate::module::ModulePath;
-
 use crate::value::LocalEnv;
 use crate::value::LocalEnvRef;
 use crate::value::ObjectKey;
 use crate::value::ObjectValue;
+use crate::value::ObjectValueRef;
 use crate::value::RefValue;
 use crate::EvalError;
 use crate::Expr;
-
 use crate::Program;
 use crate::Value;
 use gc::Gc;
-
-use std::cell::RefCell;
+use std::cell::OnceCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -33,12 +30,23 @@ use std::rc::Rc;
 pub type EvalResult<T = Value> = Result<T, EvalError>;
 pub type IntrinsicFn = dyn Fn(&[Value]) -> EvalResult;
 
+#[derive(Default)]
+pub struct Prototype {
+    null: OnceCell<ObjectValueRef>,
+    int: OnceCell<ObjectValueRef>,
+    bool: OnceCell<ObjectValueRef>,
+    string: OnceCell<ObjectValueRef>,
+    symbol: OnceCell<ObjectValueRef>,
+    function: OnceCell<ObjectValueRef>,
+    array: OnceCell<ObjectValueRef>,
+}
+
 pub struct RuntimeContext<Loader: ModuleLoader> {
     module_loader: Loader,
     modules: HashMap<ModulePath, Gc<Module>>,
     intrinsics: HashMap<String, fn(&[Value]) -> EvalResult>,
     allow_rebind_global: bool,
-    array_proto: RefCell<Value>,
+    proto: Prototype,
 }
 
 impl RuntimeContext<FsModuleLoader> {
@@ -56,7 +64,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             modules: Default::default(),
             intrinsics: Default::default(),
             allow_rebind_global: false,
-            array_proto: RefCell::new(Value::null()),
+            proto: Default::default(),
         };
 
         register_intrinsics(&mut rt);
@@ -69,10 +77,27 @@ impl<L: ModuleLoader> RuntimeContext<L> {
         rt.load_module(&ModulePath::new("std/prelude"))?;
 
         let std = rt.load_module(&ModulePath::new("std"))?;
-        *rt.array_proto.borrow_mut() = std
-            .lookup("Array")
-            .unwrap()
-            .use_object(|o| o.get_or_err(&ObjectKey::new_str_from_str("prototype")))?;
+        fn get_proto(m: &Module, name: &str) -> EvalResult<ObjectValueRef> {
+            m.lookup_or_err(name)?
+                .get_object_prop_str("prototype")?
+                .try_into()
+        }
+        macro_rules! set_proto {
+            ($field:ident, $name:literal) => {
+                rt.proto
+                    .$field
+                    .set(get_proto(&std, $name)?)
+                    .unwrap_or_else(|_| unreachable!());
+            };
+        }
+        set_proto!(null, "Null");
+        set_proto!(int, "Int");
+        set_proto!(bool, "Bool");
+        set_proto!(string, "String");
+        set_proto!(symbol, "Symbol");
+        set_proto!(function, "Function");
+        set_proto!(array, "Array");
+
         Ok(rt)
     }
 
@@ -553,28 +578,25 @@ impl<L: ModuleLoader> RuntimeContext<L> {
     }
 
     fn as_object<T, F: FnOnce(&ObjectValue) -> EvalResult<T>>(
-        &mut self,
+        &self,
         value: &Value,
         f: F,
     ) -> EvalResult<T> {
-        let std = self.load_module(&ModulePath::new("std"))?;
-        let proto_name = match value {
-            Value::Int(_) => "Int",
-            Value::Bool(_) => "Bool",
-            Value::Null => "Null",
-            Value::Str(_) => "String",
-            Value::Sym(_) => "Symbol",
-            Value::Intrinsic(_) => "Function",
-            Value::Ref(RefValue::Array(_)) => "Array",
-            Value::Ref(RefValue::Fun { .. }) => "Function",
+        let proto = match value {
+            Value::Int(_) => &self.proto.int,
+            Value::Bool(_) => &self.proto.bool,
+            Value::Null => &self.proto.null,
+            Value::Str(_) => &self.proto.string,
+            Value::Sym(_) => &self.proto.symbol,
+            Value::Intrinsic(_) => &self.proto.function,
+            Value::Ref(RefValue::Array(_)) => &self.proto.array,
+            Value::Ref(RefValue::Fun { .. }) => &self.proto.function,
             Value::Ref(RefValue::Object(obj)) => {
-                let obj = obj.borrow();
+                let obj = (**obj).borrow();
                 return f(&obj);
             }
         };
-        std.lookup_or_err(proto_name)?
-            .get_object_prop_str("prototype")?
-            .use_object(f)
+        f(&(**proto.get().unwrap()).borrow())
     }
     fn prop_spec_to_object_key(
         &mut self,
@@ -595,7 +617,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
         };
         Ok(key)
     }
-    fn get_prop(&mut self, value: &Value, key: &ObjectKey) -> EvalResult {
+    fn get_prop(&self, value: &Value, key: &ObjectKey) -> EvalResult {
         self.as_object(value, |obj| {
             obj.get(key)
                 .cloned()

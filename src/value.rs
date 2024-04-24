@@ -224,6 +224,17 @@ impl TryFrom<Value> for ObjectKey {
     }
 }
 
+impl TryFrom<Value> for ObjectValueRef {
+    type Error = EvalError;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::Ref(RefValue::Object(o)) => Ok(o),
+            _ => Err(EvalError::type_error("Object", value)),
+        }
+    }
+}
+
 impl From<i32> for Value {
     fn from(value: i32) -> Self {
         Value::Int(value)
@@ -393,6 +404,9 @@ impl std::fmt::Display for ObjectKey {
         }
     }
 }
+
+pub type ArrayValueRef = Gc<GcCell<Vec<Value>>>;
+pub type ObjectValueRef = Gc<GcCell<ObjectValue>>;
 
 #[derive(PartialEq, Eq, Clone, Finalize)]
 pub struct ObjectValue {
