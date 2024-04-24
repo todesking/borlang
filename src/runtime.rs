@@ -502,13 +502,12 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                     .unwrap_or_else(|| panic!("Intrinsic not registered: {}", name));
                 f(args)
             }
-            Value::Ref(v) => match &**v {
-                RefValue::Fun {
+            Value::Ref(RefValue::Fun {
                     params,
                     body,
                     local_env,
                     current_module,
-                } => {
+                }) => {
                     if params.len() != args.len() {
                         return Err(EvalError::ArgumentLength {
                             expected: params.len(),
@@ -521,8 +520,6 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                     }
                     self.eval_expr(body, &Some(local_env), current_module)
                 }
-                _ => Err(EvalError::TypeError("Fun".into(), f.clone())),
-            },
             _ => Err(EvalError::TypeError("Intrinsic".to_owned(), f.clone())),
         }
     }
@@ -569,14 +566,12 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             Value::Atom(AtomValue::Str(_)) => "String",
             Value::Atom(AtomValue::Sym(_)) => "Symbol",
             Value::Atom(AtomValue::Intrinsic(_)) => "Function",
-            Value::Ref(ref_value) => match &**ref_value {
-                RefValue::Array(_) => "Array",
-                RefValue::Fun { .. } => "Function",
-                RefValue::Object(obj) => {
+            Value::Ref(RefValue::Array(_))=> "Array",
+            Value::Ref(RefValue::Fun{..})=> "Function",
+            Value::Ref(RefValue::Object(obj))=>{
                     let obj = obj.borrow();
                     return f(&obj);
                 }
-            },
         };
         std.lookup_or_err(proto_name)?
             .get_object_prop_str("prototype")?

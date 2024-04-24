@@ -5,7 +5,7 @@ use std::{collections::HashMap, fmt::Write, rc::Rc};
 #[derive(Debug, PartialEq, Eq, Clone, Finalize)]
 pub enum Value {
     Atom(AtomValue),
-    Ref(Gc<RefValue>),
+    Ref(RefValue),
 }
 unsafe impl Trace for Value {
     gc::custom_trace!(this, {
@@ -51,22 +51,19 @@ impl Value {
         .into()
     }
     pub fn object(obj: ObjectValue) -> Value {
-        RefValue::Object(GcCell::new(obj)).into()
+        RefValue::Object(Gc::new(GcCell::new(obj))).into()
     }
     pub fn array(v: Vec<Value>) -> Value {
-        RefValue::Array(GcCell::new(v)).into()
+        RefValue::Array(Gc::new(GcCell::new(v))).into()
     }
 
     pub fn use_array<T, F: FnOnce(&[Value]) -> EvalResult<T>>(&self, f: F) -> EvalResult<T> {
         match self {
-            Value::Atom(_) => Err(EvalError::type_error("Array", self.clone())),
-            Value::Ref(ref_value) => match &**ref_value {
-                RefValue::Array(arr) => {
+            Value::Ref(RefValue::Array(arr)) => {
                     let arr = arr.borrow();
                     f(&arr)
-                }
-                _ => Err(EvalError::type_error("Array", self.clone())),
-            },
+            }
+            _ => Err(EvalError::type_error("Array", self.clone())),
         }
     }
     pub fn use_array_mut<T, F: FnOnce(&mut Vec<Value>) -> EvalResult<T>>(
@@ -74,19 +71,13 @@ impl Value {
         f: F,
     ) -> EvalResult<T> {
         match self {
-            Value::Atom(_) => Err(EvalError::type_error("Array", self.clone())),
-            Value::Ref(ref_value) => match &**ref_value {
-                RefValue::Array(arr) => f(&mut arr.borrow_mut()),
-                _ => Err(EvalError::type_error("Array", self.clone())),
-            },
+            Value::Ref(RefValue::Array(arr)) => f(&mut arr.borrow_mut()),
+            _ => Err(EvalError::type_error("Array", self.clone())),
         }
     }
     pub fn use_object<T, F: FnOnce(&ObjectValue) -> EvalResult<T>>(&self, f: F) -> EvalResult<T> {
         match self {
-            Value::Ref(ref_value) => match &**ref_value {
-                RefValue::Object(obj) => f(&obj.borrow()),
-                _ => Err(EvalError::type_error("Object", self.clone())),
-            },
+            Value::Ref(RefValue::Object(obj)) => f(&obj.borrow()),
             _ => Err(EvalError::type_error("Object", self.clone())),
         }
     }
@@ -95,10 +86,7 @@ impl Value {
         f: F,
     ) -> EvalResult<T> {
         match self {
-            Value::Ref(ref_value) => match &**ref_value {
-                RefValue::Object(obj) => f(&mut obj.borrow_mut()),
-                _ => Err(EvalError::type_error("Object", self.clone())),
-            },
+            Value::Ref(RefValue::Object(obj)) => f(&mut obj.borrow_mut()),
             _ => Err(EvalError::type_error("Object", self.clone())),
         }
     }
@@ -132,8 +120,7 @@ impl Value {
 impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Value::Ref(ref_value) => match &**ref_value {
-                RefValue::Array(values) => {
+            Value::Ref(RefValue::Array(values)) => {
                     f.write_str("[")?;
                     let values = values.borrow();
                     let mut iter = values.iter();
@@ -146,15 +133,14 @@ impl std::fmt::Display for Value {
                     }
                     f.write_str("]")?;
                 }
-                RefValue::Object(obj) => {
+                Value::Ref(RefValue::Object(obj)) => {
                     obj.borrow().fmt(f)?;
                 }
-                RefValue::Fun { current_module, .. } => {
+                Value::Ref(RefValue::Fun { current_module, .. }) => {
                     f.write_str("#fun")?;
                     f.write_str("@")?;
                     current_module.path.fmt(f)?;
                 }
-            },
             Value::Atom(atom_value) => match atom_value {
                 AtomValue::Bool(v) => {
                     v.fmt(f)?;
@@ -356,12 +342,12 @@ pub enum RefValue {
         local_env: Option<LocalEnvRef>,
         current_module: Gc<Module>,
     },
-    Object(GcCell<ObjectValue>),
-    Array(GcCell<Vec<Value>>),
+    Object(Gc<GcCell<ObjectValue>>),
+    Array(Gc<GcCell<Vec<Value>>>),
 }
 impl From<RefValue> for Value {
     fn from(value: RefValue) -> Self {
-        Value::Ref(Gc::new(value))
+        Value::Ref(value)
     }
 }
 impl std::fmt::Debug for RefValue {
@@ -439,7 +425,7 @@ impl Default for ObjectValue {
 }
 impl From<ObjectValue> for Value {
     fn from(value: ObjectValue) -> Self {
-        RefValue::Object(GcCell::new(value)).into()
+        RefValue::Object(Gc::new(GcCell::new(value))).into()
     }
 }
 impl std::fmt::Debug for ObjectValue {
