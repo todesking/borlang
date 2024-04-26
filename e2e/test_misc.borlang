@@ -1,0 +1,29 @@
+let {Iterable, Iterator} = import "std";
+let {assert_eq} = import "std/assert";
+
+let test_range_fun = fn () => do {
+  let range = fn (from, to) => {
+    from,
+    to,
+    [Iterable.iterator]: fn (self) => {
+      from: self.from,
+      to: self.to,
+      cur: self.from,
+      [Iterator.next]: fn (self) => do {
+        if self.cur < to {
+          let cur = self.cur;
+          self.cur = self.cur + 1;
+          [cur]
+        } else {
+          []
+        }
+      }
+    }
+  };
+
+  let n = 0;
+  for i in range(1, 11) {
+    n = n + i;
+  };
+  assert_eq(n, 55);
+};
