@@ -74,6 +74,7 @@ impl Module {
     }
     pub fn bind<S: Into<String>>(
         &self,
+        // TODO: Use Rc<String>
         name: S,
         value: Value,
         is_pub: bool,
@@ -91,6 +92,11 @@ impl Module {
         }
         self.values.borrow_mut().insert(name, value);
         Ok(())
+    }
+    pub fn bind_symbol(&self, name: Rc<String>, is_pub: bool) -> EvalResult {
+        let value = Value::Sym(Rc::new(format!("{}:{}", self.path, &name)));
+        self.bind(&*name, value.clone(), is_pub, false)?;
+        Ok(value)
     }
     pub fn pub_object(&self) -> &Value {
         &self.pub_object

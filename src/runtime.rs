@@ -40,12 +40,42 @@ pub struct Prototype {
     array: ObjectValueRef,
 }
 
+macro_rules! define_symbols {
+    ($($name:ident),+$(,)?) => {
+        define_symbols!(@type Symbols $($name),+);
+        define_symbols!(@impl Symbols $($name),+);
+    };
+    (@type $ty:ident $($name:ident),+) => {
+        pub struct $ty {
+            $($name: ObjectKey),+
+        }
+    };
+    (@impl $ty:ident $($name:ident),+) => {
+        impl $ty {
+            fn new(module: &Module) -> EvalResult<Self> {
+                Ok(Self {
+                    $(
+                        $name: module.bind_symbol(Rc::new(stringify!($name).into()), true)?.to_object_key()?
+                    ),+
+                })
+            }
+        }
+    };
+    (@impl_members $module:ident $name:ident, $($rest:ident),* $(,)?) => {
+        $name: $module.define_symbol(stringify!($name))?.to_object_key()?,
+        define_symbols!(@impl_members $module $($rest),*)
+    };
+}
+
+define_symbols!(op_plus, op_minus, op_mul, op_mod, op_gt, op_ge, op_lt, op_le, op_negate, op_not,);
+
 pub struct RuntimeContext<Loader: ModuleLoader> {
     module_loader: Loader,
     modules: HashMap<ModulePath, Gc<Module>>,
     intrinsics: HashMap<String, fn(&[Value]) -> EvalResult>,
     allow_rebind_global: bool,
     proto: OnceCell<Prototype>,
+    symbols: OnceCell<Symbols>,
 }
 
 impl RuntimeContext<FsModuleLoader> {
@@ -64,6 +94,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             intrinsics: Default::default(),
             allow_rebind_global: false,
             proto: OnceCell::new(),
+            symbols: OnceCell::new(),
         };
 
         register_intrinsics(&mut rt);
