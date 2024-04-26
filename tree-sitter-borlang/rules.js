@@ -6,6 +6,7 @@ const Prec = {
   reassign: 0,
   let: 0,
   compare: 1,
+  range: 1,
   add: 2,
   mul: 3,
 
@@ -68,6 +69,10 @@ const common_rules = {
     prec.left(Prec.add, seq(
       field("lhs", $._expr),
       field("op", choice($.op_plus, $.op_minus)),
+      field("rhs", $._expr))),
+    prec.left(Prec.range, seq(
+      field("lhs", $._expr),
+      field("op", choice($.op_range, $.op_range_eq)),
       field("rhs", $._expr))),
   ),
   expr_neg: $ => prec.left(seq(
@@ -220,6 +225,8 @@ const common_rules = {
   op_le: _ => '<=',
   op_gt: _ => '>',
   op_ge: _ => '>=',
+  op_range: _ => '..',
+  op_range_eq: _ => '..=',
   op_spread: _ => '..',
 }
 

@@ -27,3 +27,19 @@ let test_range_fun = fn () => do {
   };
   assert_eq(n, 55);
 };
+
+let test_range_op_int = fn () => do {
+  let n = 0;
+  for i in 1..5 {
+    n = n + i;
+  };
+  assert_eq(n, 10);
+};
+
+let test_range_op_eq_int = fn () => do {
+  let n = 0;
+  for i in 1..=5 {
+    n = n + i;
+  };
+  assert_eq(n, 15);
+};

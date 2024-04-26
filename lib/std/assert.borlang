@@ -6,7 +6,7 @@ pub let assert_throws = fn (expr, check) => do {
     thrown = true;
     if check(e) {
     } else {
-      assert(false, "wrong exception thrown");
+      throw({message: "wrong exception thrown", exception: e});
     }
   };
   assert(thrown, "exception not thrown");
@@ -15,6 +15,6 @@ pub let assert_throws = fn (expr, check) => do {
 pub let assert_eq = fn (lhs, rhs) => do {
   if lhs == rhs {
   } else {
-    throw("not eq")
+    throw({message: "not eq", lhs, rhs})
   }
 };

@@ -79,6 +79,8 @@ define_symbols!(
     op_le,
     op_negate,
     op_not,
+    op_range,
+    op_range_eq,
     iterable_iterator,
     iterator_next
 );
@@ -93,6 +95,8 @@ impl Symbols {
             ">=" => Some(&self.op_ge),
             "<" => Some(&self.op_lt),
             "<=" => Some(&self.op_le),
+            ".." => Some(&self.op_range),
+            "..=" => Some(&self.op_range_eq),
             _ => None,
         }
     }

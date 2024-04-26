@@ -18,6 +18,31 @@ pub let Null = {
   }
 };
 
+let int_range = fn (from, to, inclusive) => {
+  from,
+  to,
+  inclusive,
+  [Iterable.iterator]: fn (self) => {
+    to: self.to,
+    inclusive: self.inclusive,
+    cur: self.from,
+    [Iterator.next]: fn (self) => do {
+      let in_range = if self.inclusive {
+        self.cur <= self.to
+      } else {
+        self.cur < self.to
+      };
+      if in_range {
+        let cur = self.cur;
+        self.cur = self.cur + 1;
+        [cur]
+      } else {
+        []
+      }
+    }
+  }
+};
+
 pub let Int = {
   prototype: {
     [ops.op_plus]: intrinsic("int_add"),
@@ -29,6 +54,8 @@ pub let Int = {
     [ops.op_lt]: intrinsic("int_lt"),
     [ops.op_le]: intrinsic("int_le"),
     [ops.op_negate]: intrinsic("int_negate"),
+    [ops.op_range]: fn (lhs, rhs) => int_range(lhs, rhs, false),
+    [ops.op_range_eq]: fn (lhs, rhs) => int_range(lhs, rhs, true),
   }
 };
 

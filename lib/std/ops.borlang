@@ -9,6 +9,8 @@ pub let {
   op_le,
   op_negate,
   op_not,
+  op_range,
+  op_range_eq,
   iterable_iterator,
   iterator_next,
 } = import "_internal";
