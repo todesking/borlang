@@ -22,7 +22,8 @@ use crate::Expr;
 use crate::Program;
 use crate::Value;
 use gc::Gc;
-use std::cell::OnceCell;
+use gc::GcCell;
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -102,7 +103,7 @@ pub struct RuntimeContext<Loader: ModuleLoader> {
     modules: HashMap<ModulePath, Gc<Module>>,
     intrinsics: HashMap<String, fn(&[Value]) -> EvalResult>,
     allow_rebind_global: bool,
-    proto: OnceCell<Prototype>,
+    proto: Prototype,
     symbols: Symbols,
 }
 
@@ -115,7 +116,7 @@ impl RuntimeContext<FsModuleLoader> {
 }
 
 impl<L: ModuleLoader> RuntimeContext<L> {
-    pub fn new(module_loader: L) -> Self {
+    fn bootstrap(module_loader: L) -> Self {
         let internal = Module::new(ModulePath::new("_internal"));
         internal
             .bind("intrinsic", Value::intrinsic("intrinsic"), true, false)
@@ -129,13 +130,22 @@ impl<L: ModuleLoader> RuntimeContext<L> {
 
         let symbols = Symbols::register(&internal).unwrap();
 
+        let dummy_proto = Gc::new(GcCell::new(ObjectValue::new()));
         let mut rt = Self {
             module_loader,
             modules: Default::default(),
             intrinsics: Default::default(),
             allow_rebind_global: false,
-            proto: OnceCell::new(),
             symbols,
+            proto: Prototype {
+                array: dummy_proto.clone(),
+                bool: dummy_proto.clone(),
+                function: dummy_proto.clone(),
+                symbol: dummy_proto.clone(),
+                string: dummy_proto.clone(),
+                null: dummy_proto.clone(),
+                int: dummy_proto.clone(),
+            },
         };
         rt.modules.insert(internal.path.clone(), Gc::new(internal));
         register_intrinsics(&mut rt);
@@ -143,7 +153,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
     }
 
     pub fn load(module_loader: L) -> EvalResult<Self> {
-        let mut rt = Self::new(module_loader);
+        let mut rt = Self::bootstrap(module_loader);
 
         rt.load_module(&ModulePath::new("std/prelude"))?;
 
@@ -153,17 +163,17 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 .get_object_prop_str("prototype")?
                 .try_into()
         }
-        rt.proto
-            .set(Prototype {
-                null: get_proto(&std, "Null")?,
-                int: get_proto(&std, "Int")?,
-                bool: get_proto(&std, "Bool")?,
-                string: get_proto(&std, "String")?,
-                symbol: get_proto(&std, "Symbol")?,
-                function: get_proto(&std, "Function")?,
-                array: get_proto(&std, "Array")?,
-            })
-            .unwrap_or_else(|_| unreachable!());
+        let proto = Prototype {
+            null: get_proto(&std, "Null")?,
+            int: get_proto(&std, "Int")?,
+            bool: get_proto(&std, "Bool")?,
+            string: get_proto(&std, "String")?,
+            symbol: get_proto(&std, "Symbol")?,
+            function: get_proto(&std, "Function")?,
+            array: get_proto(&std, "Array")?,
+        };
+
+        let rt = RuntimeContext { proto, ..rt };
 
         Ok(rt)
     }
@@ -631,12 +641,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
         value: &Value,
         f: F,
     ) -> EvalResult<T> {
-        let Some(proto) = self.proto.get() else {
-            match value {
-                Value::Ref(RefValue::Object(obj)) => return f(&obj.borrow()),
-                _ => panic!("initialization-time non-object property access"),
-            }
-        };
+        let proto = &self.proto;
         let proto = match value {
             Value::Int(_) => &proto.int,
             Value::Bool(_) => &proto.bool,
