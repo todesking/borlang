@@ -1,10 +1,14 @@
-pub sym op_plus;
-pub sym op_minus;
-pub sym op_mul;
-pub sym op_mod;
-pub sym op_gt;
-pub sym op_ge;
-pub sym op_lt;
-pub sym op_le;
-pub sym op_negate;
-pub sym op_not;
+pub let {
+  op_plus,
+  op_minus,
+  op_mul,
+  op_mod,
+  op_gt,
+  op_ge,
+  op_lt,
+  op_le,
+  op_negate,
+  op_not,
+  iterable_iterator,
+  iterator_next,
+} = import "_internal";

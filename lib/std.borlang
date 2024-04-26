@@ -1,14 +1,16 @@
-let {intrinsic} = import "_internal";
+let {
+  intrinsic,
+  iterable_iterator,
+  iterator_next,
+} = import "_internal";
 let ops = import "std/ops";
 
-sym Iterable_iterator;
 pub let Iterable = {
-  iterator: Iterable_iterator,
+  iterator: iterable_iterator,
 };
 
-sym Iterator_next;
 pub let Iterator = {
-  next: Iterator_next,
+  next: iterator_next,
 };
 
 pub let Null = {

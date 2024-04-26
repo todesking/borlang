@@ -69,6 +69,11 @@ pub fn register_intrinsics<L: ModuleLoader>(rt: &mut RuntimeContext<L>) {
     intrinsic_binop!(int_ge, i32, |lhs, rhs| lhs >= rhs);
     intrinsic_binop!(int_lt, i32, |lhs, rhs| lhs < rhs);
     intrinsic_binop!(int_le, i32, |lhs, rhs| lhs <= rhs);
+    intrinsic!(int_negate, args, {
+        EvalError::check_argument_len(1, args.len())?;
+        let v: i32 = (&args[0]).try_into()?;
+        Ok((-v).into())
+    });
 
     macro_rules! intrinsic_binop_any {
         ($name:ident, |$lhs:ident, $rhs:ident| $body:expr) => {
@@ -83,12 +88,6 @@ pub fn register_intrinsics<L: ModuleLoader>(rt: &mut RuntimeContext<L>) {
     }
     intrinsic_binop_any!(op_eq, |lhs, rhs| lhs == rhs);
     intrinsic_binop_any!(op_ne, |lhs, rhs| lhs != rhs);
-
-    intrinsic!(op_negate, args, {
-        EvalError::check_argument_len(1, args.len())?;
-        let v: i32 = (&args[0]).try_into()?;
-        Ok((-v).into())
-    });
 
     intrinsic!(throw, args, {
         EvalError::check_argument_len(1, args.len())?;

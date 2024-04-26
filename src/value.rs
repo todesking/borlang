@@ -94,18 +94,18 @@ impl Value {
             _ => Err(EvalError::type_error("Object", self.clone())),
         }
     }
-    pub fn get_object_prop(&self, key: ObjectKey) -> EvalResult {
+    pub fn get_object_prop(&self, key: &ObjectKey) -> EvalResult {
         self.use_object(|obj| {
-            obj.get(&key)
+            obj.get(key)
                 .cloned()
-                .ok_or_else(|| EvalError::property_not_found(key))
+                .ok_or_else(|| EvalError::property_not_found(key.clone()))
         })
     }
     pub fn get_object_prop_str(&self, prop: &str) -> EvalResult {
-        self.get_object_prop(ObjectKey::new_str_from_str(prop))
+        self.get_object_prop(&ObjectKey::new_str_from_str(prop))
     }
     pub fn get_object_prop_sym(&self, prop: &str) -> EvalResult {
-        self.get_object_prop(ObjectKey::Sym(Rc::new(prop.into())))
+        self.get_object_prop(&ObjectKey::Sym(Rc::new(prop.into())))
     }
 
     pub fn to_object_key(&self) -> EvalResult<ObjectKey> {

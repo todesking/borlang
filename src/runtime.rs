@@ -52,7 +52,7 @@ macro_rules! define_symbols {
     };
     (@impl $ty:ident $($name:ident),+) => {
         impl $ty {
-            fn new(module: &Module) -> EvalResult<Self> {
+            fn register(module: &Module) -> EvalResult<Self> {
                 Ok(Self {
                     $(
                         $name: module.bind_symbol(Rc::new(stringify!($name).into()), true)?.to_object_key()?
@@ -67,7 +67,35 @@ macro_rules! define_symbols {
     };
 }
 
-define_symbols!(op_plus, op_minus, op_mul, op_mod, op_gt, op_ge, op_lt, op_le, op_negate, op_not,);
+define_symbols!(
+    op_plus,
+    op_minus,
+    op_mul,
+    op_mod,
+    op_gt,
+    op_ge,
+    op_lt,
+    op_le,
+    op_negate,
+    op_not,
+    iterable_iterator,
+    iterator_next
+);
+impl Symbols {
+    fn get_by_bin_op(&self, op: &str) -> Option<&ObjectKey> {
+        match op {
+            "+" => Some(&self.op_plus),
+            "-" => Some(&self.op_minus),
+            "*" => Some(&self.op_mul),
+            "%" => Some(&self.op_mod),
+            ">" => Some(&self.op_gt),
+            ">=" => Some(&self.op_ge),
+            "<" => Some(&self.op_lt),
+            "<=" => Some(&self.op_le),
+            _ => None,
+        }
+    }
+}
 
 pub struct RuntimeContext<Loader: ModuleLoader> {
     module_loader: Loader,
@@ -75,7 +103,7 @@ pub struct RuntimeContext<Loader: ModuleLoader> {
     intrinsics: HashMap<String, fn(&[Value]) -> EvalResult>,
     allow_rebind_global: bool,
     proto: OnceCell<Prototype>,
-    symbols: OnceCell<Symbols>,
+    symbols: Symbols,
 }
 
 impl RuntimeContext<FsModuleLoader> {
@@ -87,22 +115,35 @@ impl RuntimeContext<FsModuleLoader> {
 }
 
 impl<L: ModuleLoader> RuntimeContext<L> {
-    pub fn load(module_loader: L) -> EvalResult<Self> {
+    pub fn new(module_loader: L) -> Self {
+        let internal = Module::new(ModulePath::new("_internal"));
+        internal
+            .bind("intrinsic", Value::intrinsic("intrinsic"), true, false)
+            .unwrap();
+        internal
+            .bind("true", Value::bool(true), true, false)
+            .unwrap();
+        internal
+            .bind("false", Value::bool(false), true, false)
+            .unwrap();
+
+        let symbols = Symbols::register(&internal).unwrap();
+
         let mut rt = Self {
             module_loader,
             modules: Default::default(),
             intrinsics: Default::default(),
             allow_rebind_global: false,
             proto: OnceCell::new(),
-            symbols: OnceCell::new(),
+            symbols,
         };
-
+        rt.modules.insert(internal.path.clone(), Gc::new(internal));
         register_intrinsics(&mut rt);
+        rt
+    }
 
-        let internal = rt.new_module(ModulePath::new("_internal"))?;
-        internal.bind("intrinsic", Value::intrinsic("intrinsic"), true, false)?;
-        internal.bind("true", Value::bool(true), true, false)?;
-        internal.bind("false", Value::bool(false), true, false)?;
+    pub fn load(module_loader: L) -> EvalResult<Self> {
+        let mut rt = Self::new(module_loader);
 
         rt.load_module(&ModulePath::new("std/prelude"))?;
 
@@ -288,30 +329,21 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 if &*op.0 == "!=" {
                     return Ok(Value::bool(lhs != rhs));
                 }
-                let sym_name = match &**op.0 {
-                    "+" => "op_plus",
-                    "-" => "op_minus",
-                    "*" => "op_mul",
-                    "%" => "op_mod",
-                    ">" => "op_gt",
-                    ">=" => "op_ge",
-                    "<" => "op_lt",
-                    "<=" => "op_le",
-                    unk => panic!("Unknown binary operator: {unk}"),
+                let Some(sym) = self.symbols.get_by_bin_op(&op.0) else {
+                    panic!("Unknown binary operator: `{}`", &op)
                 };
-                let std = self.load_module(&ModulePath::new("std/ops"))?;
-                let sym = std.lookup_or_err(sym_name)?;
-                let f = self.as_object(&lhs, |o| o.get_or_err(&sym.to_object_key()?))?;
+                let f = self.as_object(&lhs, |o| o.get_or_err(sym))?;
                 self.eval_app(&f, &[lhs, rhs])
             }
             Expr::Negate { expr } => {
-                let f = Value::intrinsic("op_negate");
-                let v = self.eval_expr(expr, local_env, current_module)?;
-                self.eval_app(&f, &[v])
+                let value = self.eval_expr(expr, local_env, current_module)?;
+                let f = self.as_object(&value, |v| v.get_or_err(&self.symbols.op_negate))?;
+                self.eval_app(&f, &[value])
             }
             Expr::Not { expr } => {
                 let v = self.eval_expr(expr, local_env, current_module)?;
-                Ok(Value::bool(!bool::try_from(&v)?))
+                let f = self.as_object(&v, |v| v.get_or_err(&self.symbols.op_not))?;
+                self.eval_app(&f, &[v])
             }
             Expr::App { expr: f, args } => match &**f {
                 Expr::Prop { expr, prop } => {
@@ -389,24 +421,11 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             }
             Expr::For { name, target, body } => {
                 let target = self.eval_expr(target, local_env, current_module)?;
-                let std = self.load_module(&ModulePath::new("std"))?;
-                let sym_iter = std
-                    .lookup("Iterable")
-                    .unwrap()
-                    .get_object_prop_str("iterator")
-                    .unwrap();
-                let iter_new = self.get_prop(&target, &sym_iter.to_object_key()?)?;
+                let iter_new = self.get_prop(&target, &self.symbols.iterable_iterator)?;
                 let iter = self.eval_app(&iter_new, &[target])?;
                 let args = [iter];
-                let key_next = std
-                    .lookup("Iterator")
-                    .unwrap()
-                    .get_object_prop_str("next")
-                    .unwrap()
-                    .to_object_key()
-                    .unwrap();
                 loop {
-                    let next = self.get_prop(&args[0], &key_next)?;
+                    let next = self.get_prop(&args[0], &self.symbols.iterator_next)?;
                     let next_value = self.eval_app(&next, &args)?;
                     let next_value = next_value.use_array(|a| match a {
                         [] => Ok(None),

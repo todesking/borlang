@@ -370,7 +370,10 @@ mod test {
     fn bool_not() {
         assert_eval_ok!("!true", false);
         assert_eval_ok!("!false", true);
-        assert_eval_err!("!0", EvalError::type_error("Bool", 0));
+        assert_eval_err!(
+            "!0",
+            EvalError::property_not_found(ObjectKey::Sym(Rc::new("_internal:op_not".into())))
+        );
     }
 
     #[test]
@@ -399,7 +402,7 @@ mod test {
         assert_eval_err!(
             "for x in 0 {}",
             EvalError::property_not_found(ObjectKey::Sym(Rc::new(
-                "std:Iterable_iterator".to_owned()
+                "_internal:iterable_iterator".to_owned()
             )))
         );
     }
@@ -523,10 +526,13 @@ mod test {
     }
 
     #[test]
-    fn op_unary_minus() {
+    fn op_negat() {
         assert_eval_ok!("-1", -1);
         assert_eval_ok!("1 + -[1,2,3][1] * 3", -5);
-        assert_eval_err!("-[]", EvalError::type_error("Int", array_value![]));
+        assert_eval_err!(
+            "-[]",
+            EvalError::property_not_found(ObjectKey::Sym(Rc::new("_internal:op_negate".into())))
+        );
     }
 
     #[test]
