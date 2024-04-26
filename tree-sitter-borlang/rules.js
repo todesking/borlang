@@ -214,7 +214,7 @@ const common_rules = {
     '=>',
     field('catch_expr', $._expr),
   )),
-  ident: _ => /[A-Za-z_][a-z0-9_]*/,
+  ident: _ => /[A-Za-z_][A-Za-z0-9_]*/,
   op_plus: _ => '+',
   op_minus: _ => '-',
   op_mul: _ => '*',

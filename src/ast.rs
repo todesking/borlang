@@ -195,6 +195,7 @@ fn parse_str_content(s: &str) -> Result<String, Box<dyn Error>> {
     let re = STR_CONTENT_RE.get_or_init(|| Regex::new(r#"\\(.)"#).unwrap());
     try_replace_all(re, s, |captures| match &captures[1] {
         "\\" => Ok("\\"),
+        "n" => Ok("\n"),
         r#"""# => Ok(r#"""#),
         other => Err(format!("Invalid escape sequence: \\{}", other).into()),
     })

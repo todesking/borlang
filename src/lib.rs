@@ -237,6 +237,7 @@ mod test {
     fn var() {
         assert_eval_err!("a", EvalError::NameNotFound("a".into()));
         assert_eval_ok!("do {let a = 123; let b = 456; a}", 123);
+        assert_eval_ok!("do {let AAA = 123; let b = 456; AAA}", 123);
     }
 
     #[test]

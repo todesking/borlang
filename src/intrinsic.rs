@@ -96,6 +96,21 @@ pub fn register_intrinsics<L: ModuleLoader>(rt: &mut RuntimeContext<L>) {
         })
     });
 
+    intrinsic!(print_string, args, {
+        EvalError::check_argument_len(1, args.len())?;
+        let s = <&str>::try_from(&args[0])?;
+        print!("{}", s);
+        Ok(Value::null())
+    });
+
+    intrinsic!(to_string, args, {
+        EvalError::check_argument_len(1, args.len())?;
+        match &args[0] {
+            s @ Value::Str(_) => Ok(s.clone()),
+            _ => Ok(Value::Str(std::rc::Rc::new(format!("{}", args[0])))),
+        }
+    });
+
     intrinsic!(intrinsic, args, {
         EvalError::check_argument_len(1, args.len())?;
         Ok(Value::intrinsic(String::try_from(&args[0])?))

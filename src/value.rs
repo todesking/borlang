@@ -206,8 +206,16 @@ impl TryFrom<&Value> for String {
     type Error = EvalError;
 
     fn try_from(value: &Value) -> Result<Self, Self::Error> {
+        let s = <&str>::try_from(value)?;
+        Ok(s.into())
+    }
+}
+impl<'a> TryFrom<&'a Value> for &'a str {
+    type Error = EvalError;
+
+    fn try_from(value: &'a Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Str(s) => Ok((**s).clone()),
+            Value::Str(s) => Ok(&**s),
             _ => Err(EvalError::type_error("String", value.clone())),
         }
     }

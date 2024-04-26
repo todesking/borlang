@@ -98,3 +98,16 @@ pub let Array = {
     },
   }
 };
+
+pub let to_string = intrinsic("to_string");
+
+let print_string = intrinsic("print_string");
+
+pub let print = fn (value) => do {
+  print_string(to_string(value));
+};
+
+pub let println = fn(s) => do {
+  print(s);
+  print("\n");
+};
