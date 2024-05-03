@@ -36,7 +36,7 @@ enum Cont {
     Next {
         current_module: Gc<Module>,
         local_env: Option<LocalEnvRef>,
-        expr: Expr,
+        expr: Rc<Expr>,
     },
 }
 impl From<Value> for Cont {
@@ -498,7 +498,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             }
             Expr::Fun { params, expr } => Ok(Value::fun(
                 params.clone(),
-                expr.clone(),
+                Rc::new((**expr).clone()),
                 local_env.clone(),
                 current_module.clone(),
             )
@@ -656,7 +656,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 Ok(Cont::Next {
                     current_module: current_module.clone(),
                     local_env: Some(local_env),
-                    expr: (**body).clone(),
+                    expr: body.clone(),
                 })
             }
             _ => Err(EvalError::TypeError("Intrinsic".to_owned(), f.clone())),

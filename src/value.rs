@@ -42,7 +42,7 @@ impl Value {
     }
     pub fn fun(
         params: Vec<Ident>,
-        body: Box<Expr>,
+        body: Rc<Expr>,
         local_env: Option<LocalEnvRef>,
         current_module: Gc<Module>,
     ) -> Value {
@@ -338,7 +338,7 @@ impl LocalEnv {
 pub enum RefValue {
     Fun {
         params: Vec<Ident>,
-        body: Box<Expr>,
+        body: Rc<Expr>,
         local_env: Option<LocalEnvRef>,
         current_module: Gc<Module>,
     },
@@ -557,7 +557,7 @@ mod test {
         assert_display!(
             Into::<Value>::into(RefValue::Fun {
                 params: vec![],
-                body: Box::new(Expr::Var("".into())),
+                body: Rc::new(Expr::Var("".into())),
                 local_env: None,
                 current_module: me.new_module(ModulePath::new("foo.bar")),
             }),
