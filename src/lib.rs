@@ -652,4 +652,15 @@ mod test {
             123
         );
     }
+
+    #[test]
+    fn tailrec() {
+        assert_eval_ok!(
+            [
+                r#"let f = fn (x) => if x == 1000 { "OK" } else { f(x + 1) }"#,
+                r#"f(0)"#
+            ],
+            "OK"
+        );
+    }
 }

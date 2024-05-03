@@ -31,6 +31,20 @@ use std::rc::Rc;
 pub type EvalResult<T = Value> = Result<T, EvalError>;
 pub type IntrinsicFn = dyn Fn(&[Value]) -> EvalResult;
 
+enum Cont {
+    Finished(Value),
+    Next {
+        current_module: Gc<Module>,
+        local_env: Option<LocalEnvRef>,
+        expr: Expr,
+    },
+}
+impl From<Value> for Cont {
+    fn from(value: Value) -> Self {
+        Self::Finished(value)
+    }
+}
+
 pub struct Prototype {
     null: ObjectValueRef,
     int: ObjectValueRef,
@@ -280,9 +294,36 @@ impl<L: ModuleLoader> RuntimeContext<L> {
         local_env: &Option<LocalEnvRef>,
         current_module: &Gc<Module>,
     ) -> EvalResult {
+        let cont = self.eval_expr_cont(expr, local_env, current_module)?;
+        self.eval_cont(cont)
+    }
+
+    fn eval_cont(&mut self, mut cont: Cont) -> EvalResult {
+        loop {
+            match cont {
+                Cont::Finished(v) => {
+                    return Ok(v);
+                }
+                Cont::Next {
+                    current_module,
+                    local_env,
+                    expr,
+                } => {
+                    cont = self.eval_expr_cont(&expr, &local_env, &current_module)?;
+                }
+            }
+        }
+    }
+
+    fn eval_expr_cont(
+        &mut self,
+        expr: &Expr,
+        local_env: &Option<LocalEnvRef>,
+        current_module: &Gc<Module>,
+    ) -> EvalResult<Cont> {
         match expr {
-            Expr::Int(v) => Ok(Value::Int(*v)),
-            Expr::Str { content } => Ok(Value::Str(content.clone())),
+            Expr::Int(v) => Ok(Value::Int(*v).into()),
+            Expr::Str { content } => Ok(Value::Str(content.clone()).into()),
             Expr::Object(items) => {
                 let mut buf = ObjectValue::new();
                 for item in items {
@@ -314,7 +355,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                         }
                     }
                 }
-                Ok(Value::object(buf))
+                Ok(Value::object(buf).into())
             }
             Expr::Array(items) => {
                 let mut buf = Vec::new();
@@ -329,35 +370,35 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                         buf.push(value);
                     }
                 }
-                Ok(Value::array(buf))
+                Ok(Value::array(buf).into())
             }
-            Expr::Var(name) => self.get_var(local_env, current_module, name),
-            Expr::Paren { expr } => self.eval_expr(expr, local_env, current_module),
-            Expr::Do(block) => self.eval_block(block, local_env, current_module),
+            Expr::Var(name) => Ok(self.get_var(local_env, current_module, name)?.into()),
+            Expr::Paren { expr } => Ok(self.eval_expr(expr, local_env, current_module)?.into()),
+            Expr::Do(block) => self.eval_block_cont(block, local_env, current_module),
             Expr::Binop { lhs, op, rhs } => {
                 let lhs = self.eval_expr(lhs, local_env, current_module)?;
                 let rhs = self.eval_expr(rhs, local_env, current_module)?;
                 if &*op.0 == "==" {
-                    return Ok(Value::bool(lhs == rhs));
+                    return Ok(Value::bool(lhs == rhs).into());
                 }
                 if &*op.0 == "!=" {
-                    return Ok(Value::bool(lhs != rhs));
+                    return Ok(Value::bool(lhs != rhs).into());
                 }
                 let Some(sym) = self.symbols.get_by_bin_op(&op.0) else {
                     panic!("Unknown binary operator: `{}`", &op)
                 };
                 let f = self.as_object(&lhs, |o| o.get_or_err(sym))?;
-                self.eval_app(&f, &[lhs, rhs])
+                self.eval_app_cont(&f, &[lhs, rhs])
             }
             Expr::Negate { expr } => {
                 let value = self.eval_expr(expr, local_env, current_module)?;
                 let f = self.as_object(&value, |v| v.get_or_err(&self.symbols.op_negate))?;
-                self.eval_app(&f, &[value])
+                self.eval_app_cont(&f, &[value])
             }
             Expr::Not { expr } => {
                 let v = self.eval_expr(expr, local_env, current_module)?;
                 let f = self.as_object(&v, |v| v.get_or_err(&self.symbols.op_not))?;
-                self.eval_app(&f, &[v])
+                self.eval_app_cont(&f, &[v])
             }
             Expr::App { expr: f, args } => match &**f {
                 Expr::Prop { expr, prop } => {
@@ -366,12 +407,12 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                     let f = self.get_prop(&this, &key?)?;
                     let mut args = self.eval_args(args, local_env, current_module)?;
                     args.insert(0, this);
-                    self.eval_app(&f, &args)
+                    self.eval_app_cont(&f, &args)
                 }
                 _ => {
                     let f = self.eval_expr(f, local_env, current_module)?;
                     let args = self.eval_args(args, local_env, current_module)?;
-                    self.eval_app(&f, &args)
+                    self.eval_app_cont(&f, &args)
                 }
             },
             Expr::Let { name, expr } => {
@@ -379,7 +420,7 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 Self::let_bind(name, value, |n, v| {
                     self.bind_var(local_env, current_module, n, v)
                 })?;
-                Ok(Value::null())
+                Ok(Value::null().into())
             }
             Expr::Reassign { lhs, rhs } => {
                 match &**lhs {
@@ -419,17 +460,17 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                     }
                     _ => return Err(EvalError::AssignNotSupported),
                 }
-                Ok(Value::null())
+                Ok(Value::null().into())
             }
             Expr::If { cond, th, el } => {
                 let cond = self.eval_expr(cond, local_env, current_module)?;
                 let cond = (&cond).try_into()?;
                 let value = if cond {
-                    self.eval_block(th, local_env, current_module)?
+                    self.eval_block_cont(th, local_env, current_module)?
                 } else {
                     el.as_ref()
-                        .map(|el| self.eval_block(el, local_env, current_module))
-                        .unwrap_or_else(|| Ok(Value::null()))?
+                        .map(|el| self.eval_block_cont(el, local_env, current_module))
+                        .unwrap_or_else(|| Ok(Value::null().into()))?
                 };
                 Ok(value)
             }
@@ -451,37 +492,38 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                     };
                     let env = LocalEnv::extend(local_env.clone());
                     LocalEnv::bind(&env, name.clone(), next_value.clone())?;
-                    self.eval_block(body, &Some(env), current_module)?;
+                    self.eval_block_cont(body, &Some(env), current_module)?;
                 }
-                Ok(Value::null())
+                Ok(Value::null().into())
             }
             Expr::Fun { params, expr } => Ok(Value::fun(
                 params.clone(),
                 expr.clone(),
                 local_env.clone(),
                 current_module.clone(),
-            )),
+            )
+            .into()),
             Expr::Prop { expr, prop } => {
                 let value = self.eval_expr(expr, local_env, current_module)?;
                 let key = self.prop_spec_to_object_key(prop, local_env, current_module)?;
-                self.get_prop(&value, &key)
+                self.get_prop(&value, &key).map(Cont::Finished)
             }
             Expr::PropOpt { expr, prop } => {
                 let value = self.eval_expr(expr, local_env, current_module)?;
                 if value.is_null() {
-                    return Ok(Value::null());
+                    return Ok(Value::null().into());
                 }
                 let key = self.prop_spec_to_object_key(prop, local_env, current_module)?;
-                self.get_prop(&value, &key)
+                self.get_prop(&value, &key).map(Cont::Finished)
             }
             Expr::Index { expr, index } => {
                 let value = self.eval_expr(expr, local_env, current_module)?;
                 let index = self.eval_expr(index, local_env, current_module)?;
-                self.get_index(&value, &index)
+                self.get_index(&value, &index).map(Cont::Finished)
             }
             Expr::Import(ExprStr { content }) => {
                 let module = self.load_module(&ModulePath::new((**content).to_owned()))?;
-                Ok(module.pub_object().clone())
+                Ok(module.pub_object().clone().into())
             }
             Expr::Catch {
                 expr,
@@ -491,28 +533,30 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 Err(EvalError::Exception { data }) => {
                     let local_env = LocalEnv::extend(local_env.clone());
                     LocalEnv::bind(&local_env, name.clone(), data.clone())?;
-                    self.eval_expr(catch_expr, &Some(local_env), current_module)
+                    self.eval_expr_cont(catch_expr, &Some(local_env), current_module)
                 }
-                other => other,
+                Err(err) => Err(err),
+                Ok(v) => Ok(v.into()),
             },
         }
     }
 
-    fn eval_block(
+    fn eval_block_cont(
         &mut self,
         block: &Block,
         local_env: &Option<LocalEnvRef>,
         current_module: &Gc<Module>,
-    ) -> EvalResult {
+    ) -> EvalResult<Cont> {
         let Block { terms, expr } = block;
         let local_env = Some(LocalEnv::extend(local_env.clone()));
+        // TODO: support tailrec for term-only block
         for e in terms {
             self.eval_expr(e, &local_env, current_module)?;
         }
         if let Some(e) = expr {
-            self.eval_expr(e, &local_env, current_module)
+            self.eval_expr_cont(e, &local_env, current_module)
         } else {
-            Ok(Value::null())
+            Ok(Cont::Finished(Value::null()))
         }
     }
 
@@ -581,13 +625,17 @@ impl<L: ModuleLoader> RuntimeContext<L> {
     }
 
     fn eval_app(&mut self, f: &Value, args: &[Value]) -> EvalResult {
+        let cont = self.eval_app_cont(f, args)?;
+        self.eval_cont(cont)
+    }
+    fn eval_app_cont(&mut self, f: &Value, args: &[Value]) -> EvalResult<Cont> {
         match f {
             Value::Intrinsic(name) => {
                 let f = self
                     .intrinsics
                     .get(&*name.0)
                     .unwrap_or_else(|| panic!("Intrinsic not registered: {}", name));
-                f(args)
+                f(args).map(Cont::Finished)
             }
             Value::Ref(RefValue::Fun {
                 params,
@@ -605,7 +653,11 @@ impl<L: ModuleLoader> RuntimeContext<L> {
                 for (param, arg) in params.iter().zip(args.iter()) {
                     LocalEnv::bind(&local_env, param.clone(), arg.clone())?;
                 }
-                self.eval_expr(body, &Some(local_env), current_module)
+                Ok(Cont::Next {
+                    current_module: current_module.clone(),
+                    local_env: Some(local_env),
+                    expr: (**body).clone(),
+                })
             }
             _ => Err(EvalError::TypeError("Intrinsic".to_owned(), f.clone())),
         }
