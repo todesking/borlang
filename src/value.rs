@@ -1,4 +1,4 @@
-use crate::{ast::Ident, module::Module, EvalError, EvalResult, Expr};
+use crate::{ast::Ident, compiler::Insn, module::Module, EvalError, EvalResult, Expr};
 use gc::{Finalize, Gc, GcCell, Trace};
 use std::{collections::HashMap, fmt::Write, rc::Rc};
 
@@ -141,6 +141,11 @@ impl std::fmt::Display for Value {
                 obj.borrow().fmt(f)?;
             }
             Value::Ref(RefValue::Fun { current_module, .. }) => {
+                f.write_str("#fun")?;
+                f.write_str("@")?;
+                current_module.path.fmt(f)?;
+            }
+            Value::Ref(RefValue::Fun2 { current_module, .. }) => {
                 f.write_str("#fun")?;
                 f.write_str("@")?;
                 current_module.path.fmt(f)?;
@@ -342,6 +347,12 @@ pub enum RefValue {
         local_env: Option<LocalEnvRef>,
         current_module: Gc<Module>,
     },
+    Fun2 {
+        params: Rc<Vec<Rc<String>>>,
+        body: Rc<Vec<Insn>>,
+        local_env: Option<LocalEnvRef>,
+        current_module: Gc<Module>,
+    },
     Object(Gc<GcCell<ObjectValue>>),
     Array(Gc<GcCell<Vec<Value>>>),
 }
@@ -363,6 +374,16 @@ impl std::fmt::Debug for RefValue {
                 .field("params", params)
                 .field("body", body)
                 .finish_non_exhaustive(),
+            Self::Fun2 {
+                params,
+                body,
+                local_env: _,
+                current_module: _,
+            } => f
+                .debug_struct("Fun")
+                .field("params", params)
+                .field("body", body)
+                .finish_non_exhaustive(),
             Self::Array(a) => f.debug_tuple("Array").field(a).finish(),
             Self::Object(o) => f.debug_tuple("Object").field(o).finish(),
         }
@@ -373,6 +394,15 @@ unsafe impl Trace for RefValue {
     gc::custom_trace!(this, {
         match this {
             RefValue::Fun {
+                params: _,
+                body: _,
+                local_env,
+                current_module,
+            } => {
+                mark(local_env);
+                mark(current_module);
+            }
+            RefValue::Fun2 {
                 params: _,
                 body: _,
                 local_env,
@@ -454,6 +484,13 @@ impl ObjectValue {
         if old.is_none() {
             self.names.push(name);
         }
+    }
+    pub fn remove(&mut self, name: &ObjectKey) -> Option<Value> {
+        let removed = self.values.remove(name);
+        if removed.is_some() {
+            self.names.retain(|x| x != name);
+        }
+        removed
     }
     pub fn get(&self, name: &ObjectKey) -> Option<&Value> {
         self.values.get(name)

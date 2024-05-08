@@ -1,3 +1,4 @@
+use crate::compiler::CompileError;
 use crate::module::LoadError;
 
 use crate::value::ObjectKey;
@@ -31,6 +32,8 @@ pub enum EvalError {
     LoadError(LoadError),
     #[error("Exception: data={data}")]
     Exception { data: Value },
+    #[error("Compile error: {0:?}")]
+    CompileError(CompileError),
 }
 impl EvalError {
     pub fn name_not_found<S: Into<String>>(name: S) -> Self {

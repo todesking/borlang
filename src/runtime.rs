@@ -1,11 +1,8 @@
-use crate::ast::ArrayItem;
-use crate::ast::Block;
-use crate::ast::ExprStr;
 use crate::ast::Ident;
 use crate::ast::LetPattern;
-use crate::ast::ObjItem;
-use crate::ast::PropSpec;
 use crate::ast::TopTerm;
+use crate::compiler::compile;
+use crate::compiler::VM;
 use crate::intrinsic::register_intrinsics;
 use crate::module::FsModuleLoader;
 use crate::module::Module;
@@ -31,20 +28,6 @@ use std::rc::Rc;
 pub type EvalResult<T = Value> = Result<T, EvalError>;
 pub type IntrinsicFn = dyn Fn(&[Value]) -> EvalResult;
 
-enum Cont {
-    Finished(Value),
-    Next {
-        current_module: Gc<Module>,
-        local_env: Option<LocalEnvRef>,
-        expr: Rc<Expr>,
-    },
-}
-impl From<Value> for Cont {
-    fn from(value: Value) -> Self {
-        Self::Finished(value)
-    }
-}
-
 pub struct Prototype {
     null: ObjectValueRef,
     int: ObjectValueRef,
@@ -55,74 +38,12 @@ pub struct Prototype {
     array: ObjectValueRef,
 }
 
-macro_rules! define_symbols {
-    ($($name:ident),+$(,)?) => {
-        define_symbols!(@type Symbols $($name),+);
-        define_symbols!(@impl Symbols $($name),+);
-    };
-    (@type $ty:ident $($name:ident),+) => {
-        pub struct $ty {
-            $($name: ObjectKey),+
-        }
-    };
-    (@impl $ty:ident $($name:ident),+) => {
-        impl $ty {
-            fn register(module: &Module) -> EvalResult<Self> {
-                Ok(Self {
-                    $(
-                        $name: module.bind_symbol(Rc::new(stringify!($name).into()), true)?.to_object_key()?
-                    ),+
-                })
-            }
-        }
-    };
-    (@impl_members $module:ident $name:ident, $($rest:ident),* $(,)?) => {
-        $name: $module.define_symbol(stringify!($name))?.to_object_key()?,
-        define_symbols!(@impl_members $module $($rest),*)
-    };
-}
-
-define_symbols!(
-    op_plus,
-    op_minus,
-    op_mul,
-    op_mod,
-    op_gt,
-    op_ge,
-    op_lt,
-    op_le,
-    op_negate,
-    op_not,
-    op_range,
-    op_range_eq,
-    iterable_iterator,
-    iterator_next
-);
-impl Symbols {
-    fn get_by_bin_op(&self, op: &str) -> Option<&ObjectKey> {
-        match op {
-            "+" => Some(&self.op_plus),
-            "-" => Some(&self.op_minus),
-            "*" => Some(&self.op_mul),
-            "%" => Some(&self.op_mod),
-            ">" => Some(&self.op_gt),
-            ">=" => Some(&self.op_ge),
-            "<" => Some(&self.op_lt),
-            "<=" => Some(&self.op_le),
-            ".." => Some(&self.op_range),
-            "..=" => Some(&self.op_range_eq),
-            _ => None,
-        }
-    }
-}
-
 pub struct RuntimeContext<Loader: ModuleLoader> {
     module_loader: Loader,
     modules: HashMap<ModulePath, Gc<Module>>,
     intrinsics: HashMap<String, fn(&[Value]) -> EvalResult>,
     allow_rebind_global: bool,
     proto: Prototype,
-    symbols: Symbols,
 }
 
 impl RuntimeContext<FsModuleLoader> {
@@ -145,8 +66,26 @@ impl<L: ModuleLoader> RuntimeContext<L> {
         internal
             .bind("false", Value::bool(false), true, false)
             .unwrap();
-
-        let symbols = Symbols::register(&internal).unwrap();
+        for sym_name in [
+            "op_plus",
+            "op_minus",
+            "op_mul",
+            "op_mod",
+            "op_gt",
+            "op_ge",
+            "op_lt",
+            "op_le",
+            "op_negate",
+            "op_not",
+            "op_range",
+            "op_range_eq",
+            "iterable_iterator",
+            "iterator_next",
+        ] {
+            internal
+                .bind_symbol(Rc::new(sym_name.to_owned()), true)
+                .unwrap();
+        }
 
         let dummy_proto = Gc::new(GcCell::new(ObjectValue::new()));
         let mut rt = Self {
@@ -154,7 +93,6 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             modules: Default::default(),
             intrinsics: Default::default(),
             allow_rebind_global: false,
-            symbols,
             proto: Prototype {
                 array: dummy_proto.clone(),
                 bool: dummy_proto.clone(),
@@ -211,6 +149,10 @@ impl<L: ModuleLoader> RuntimeContext<L> {
 
     pub fn allow_rebind_global(&mut self, v: bool) {
         self.allow_rebind_global = v;
+    }
+
+    pub fn is_allow_rebind_global(&self) -> bool {
+        self.allow_rebind_global
     }
 
     pub fn load_module(&mut self, path: &ModulePath) -> EvalResult<Gc<Module>> {
@@ -285,279 +227,9 @@ impl<L: ModuleLoader> RuntimeContext<L> {
     }
 
     pub fn eval_expr_in_module(&mut self, expr: &Expr, module: &Gc<Module>) -> EvalResult {
-        self.eval_expr(expr, &None, module)
-    }
-
-    fn eval_expr(
-        &mut self,
-        expr: &Expr,
-        local_env: &Option<LocalEnvRef>,
-        current_module: &Gc<Module>,
-    ) -> EvalResult {
-        let cont = self.eval_expr_cont(expr, local_env, current_module)?;
-        self.eval_cont(cont)
-    }
-
-    fn eval_cont(&mut self, mut cont: Cont) -> EvalResult {
-        loop {
-            match cont {
-                Cont::Finished(v) => {
-                    return Ok(v);
-                }
-                Cont::Next {
-                    current_module,
-                    local_env,
-                    expr,
-                } => {
-                    cont = self.eval_expr_cont(&expr, &local_env, &current_module)?;
-                }
-            }
-        }
-    }
-
-    fn eval_expr_cont(
-        &mut self,
-        expr: &Expr,
-        local_env: &Option<LocalEnvRef>,
-        current_module: &Gc<Module>,
-    ) -> EvalResult<Cont> {
-        match expr {
-            Expr::Int(v) => Ok(Value::Int(*v).into()),
-            Expr::Str { content } => Ok(Value::Str(content.clone()).into()),
-            Expr::Object(items) => {
-                let mut buf = ObjectValue::new();
-                for item in items {
-                    match item {
-                        ObjItem::Const {
-                            key,
-                            expr: Some(expr),
-                        } => {
-                            let value = self.eval_expr(expr, local_env, current_module)?;
-                            buf.insert(key.to_object_key(), value);
-                        }
-                        ObjItem::Const { key, expr: None } => {
-                            let value = self.get_var(local_env, current_module, key)?;
-                            buf.insert(key.to_object_key(), value);
-                        }
-                        ObjItem::Dyn { key, expr } => {
-                            let key = self.eval_expr(key, local_env, current_module)?;
-                            let value = self.eval_expr(expr, local_env, current_module)?;
-                            buf.insert(key.to_object_key()?, value);
-                        }
-                        ObjItem::Spread(expr) => {
-                            let value = self.eval_expr(expr, local_env, current_module)?;
-                            value.use_object(|obj| {
-                                for (name, value) in obj.iter() {
-                                    buf.insert(name.clone(), value.clone());
-                                }
-                                Ok(())
-                            })?;
-                        }
-                    }
-                }
-                Ok(Value::object(buf).into())
-            }
-            Expr::Array(items) => {
-                let mut buf = Vec::new();
-                for ArrayItem { spread, expr } in items {
-                    let value = self.eval_expr(expr, local_env, current_module)?;
-                    if spread.is_some() {
-                        value.use_array(|arr| {
-                            buf.extend(arr.iter().cloned());
-                            Ok(())
-                        })?;
-                    } else {
-                        buf.push(value);
-                    }
-                }
-                Ok(Value::array(buf).into())
-            }
-            Expr::Var(name) => Ok(self.get_var(local_env, current_module, name)?.into()),
-            Expr::Paren { expr } => Ok(self.eval_expr(expr, local_env, current_module)?.into()),
-            Expr::Do(block) => self.eval_block_cont(block, local_env, current_module),
-            Expr::Binop { lhs, op, rhs } => {
-                let lhs = self.eval_expr(lhs, local_env, current_module)?;
-                let rhs = self.eval_expr(rhs, local_env, current_module)?;
-                if &*op.0 == "==" {
-                    return Ok(Value::bool(lhs == rhs).into());
-                }
-                if &*op.0 == "!=" {
-                    return Ok(Value::bool(lhs != rhs).into());
-                }
-                let Some(sym) = self.symbols.get_by_bin_op(&op.0) else {
-                    panic!("Unknown binary operator: `{}`", &op)
-                };
-                let f = self.as_object(&lhs, |o| o.get_or_err(sym))?;
-                self.eval_app_cont(&f, &[lhs, rhs])
-            }
-            Expr::Negate { expr } => {
-                let value = self.eval_expr(expr, local_env, current_module)?;
-                let f = self.as_object(&value, |v| v.get_or_err(&self.symbols.op_negate))?;
-                self.eval_app_cont(&f, &[value])
-            }
-            Expr::Not { expr } => {
-                let v = self.eval_expr(expr, local_env, current_module)?;
-                let f = self.as_object(&v, |v| v.get_or_err(&self.symbols.op_not))?;
-                self.eval_app_cont(&f, &[v])
-            }
-            Expr::App { expr: f, args } => match &**f {
-                Expr::Prop { expr, prop } => {
-                    let this = self.eval_expr(expr, local_env, current_module)?;
-                    let key = self.prop_spec_to_object_key(prop, local_env, current_module);
-                    let f = self.get_prop(&this, &key?)?;
-                    let mut args = self.eval_args(args, local_env, current_module)?;
-                    args.insert(0, this);
-                    self.eval_app_cont(&f, &args)
-                }
-                _ => {
-                    let f = self.eval_expr(f, local_env, current_module)?;
-                    let args = self.eval_args(args, local_env, current_module)?;
-                    self.eval_app_cont(&f, &args)
-                }
-            },
-            Expr::Let { name, expr } => {
-                let value = self.eval_expr(expr, local_env, current_module)?;
-                Self::let_bind(name, value, |n, v| {
-                    self.bind_var(local_env, current_module, n, v)
-                })?;
-                Ok(Value::null().into())
-            }
-            Expr::Reassign { lhs, rhs } => {
-                match &**lhs {
-                    Expr::Var(name) => {
-                        let value = self.eval_expr(rhs, local_env, current_module)?;
-                        self.reassign_var(local_env, current_module, name, value)?;
-                    }
-                    Expr::Index { expr, index } => {
-                        let arr = self.eval_expr(expr, local_env, current_module)?;
-                        let index =
-                            (&self.eval_expr(index, local_env, current_module)?).try_into()?;
-                        let value = self.eval_expr(rhs, local_env, current_module)?;
-                        arr.use_array_mut(|arr| {
-                            if arr.len() <= index {
-                                return Err(EvalError::IndexOutOfBound {
-                                    len: arr.len(),
-                                    index,
-                                });
-                            }
-                            arr[index] = value;
-                            Ok(Value::null())
-                        })?;
-                    }
-                    Expr::Prop { expr, prop } => {
-                        let obj = self.eval_expr(expr, local_env, current_module)?;
-                        let key = match prop {
-                            PropSpec::Dyn(prop) => self
-                                .eval_expr(prop, local_env, current_module)?
-                                .try_into()?,
-                            PropSpec::Const(name) => ObjectKey::new_str_from_str(name),
-                        };
-                        let value = self.eval_expr(rhs, local_env, current_module)?;
-                        obj.use_object_mut(|obj| {
-                            obj.insert(key, value);
-                            Ok(Value::null())
-                        })?;
-                    }
-                    _ => return Err(EvalError::AssignNotSupported),
-                }
-                Ok(Value::null().into())
-            }
-            Expr::If { cond, th, el } => {
-                let cond = self.eval_expr(cond, local_env, current_module)?;
-                let cond = (&cond).try_into()?;
-                let value = if cond {
-                    self.eval_block_cont(th, local_env, current_module)?
-                } else {
-                    el.as_ref()
-                        .map(|el| self.eval_block_cont(el, local_env, current_module))
-                        .unwrap_or_else(|| Ok(Value::null().into()))?
-                };
-                Ok(value)
-            }
-            Expr::For { name, target, body } => {
-                let target = self.eval_expr(target, local_env, current_module)?;
-                let iter_new = self.get_prop(&target, &self.symbols.iterable_iterator)?;
-                let iter = self.eval_app(&iter_new, &[target])?;
-                let args = [iter];
-                loop {
-                    let next = self.get_prop(&args[0], &self.symbols.iterator_next)?;
-                    let next_value = self.eval_app(&next, &args)?;
-                    let next_value = next_value.use_array(|a| match a {
-                        [] => Ok(None),
-                        [v] => Ok(Some(v.clone())),
-                        _ => Err(EvalError::type_error("[] | [T]", next_value.clone())),
-                    })?;
-                    let Some(next_value) = next_value else {
-                        break;
-                    };
-                    let env = LocalEnv::extend(local_env.clone());
-                    LocalEnv::bind(&env, name.clone(), next_value.clone())?;
-                    self.eval_block_cont(body, &Some(env), current_module)?;
-                }
-                Ok(Value::null().into())
-            }
-            Expr::Fun { params, expr } => Ok(Value::fun(
-                params.clone(),
-                Rc::new((**expr).clone()),
-                local_env.clone(),
-                current_module.clone(),
-            )
-            .into()),
-            Expr::Prop { expr, prop } => {
-                let value = self.eval_expr(expr, local_env, current_module)?;
-                let key = self.prop_spec_to_object_key(prop, local_env, current_module)?;
-                self.get_prop(&value, &key).map(Cont::Finished)
-            }
-            Expr::PropOpt { expr, prop } => {
-                let value = self.eval_expr(expr, local_env, current_module)?;
-                if value.is_null() {
-                    return Ok(Value::null().into());
-                }
-                let key = self.prop_spec_to_object_key(prop, local_env, current_module)?;
-                self.get_prop(&value, &key).map(Cont::Finished)
-            }
-            Expr::Index { expr, index } => {
-                let value = self.eval_expr(expr, local_env, current_module)?;
-                let index = self.eval_expr(index, local_env, current_module)?;
-                self.get_index(&value, &index).map(Cont::Finished)
-            }
-            Expr::Import(ExprStr { content }) => {
-                let module = self.load_module(&ModulePath::new((**content).to_owned()))?;
-                Ok(module.pub_object().clone().into())
-            }
-            Expr::Catch {
-                expr,
-                name,
-                catch_expr,
-            } => match self.eval_expr(expr, local_env, current_module) {
-                Err(EvalError::Exception { data }) => {
-                    let local_env = LocalEnv::extend(local_env.clone());
-                    LocalEnv::bind(&local_env, name.clone(), data.clone())?;
-                    self.eval_expr_cont(catch_expr, &Some(local_env), current_module)
-                }
-                Err(err) => Err(err),
-                Ok(v) => Ok(v.into()),
-            },
-        }
-    }
-
-    fn eval_block_cont(
-        &mut self,
-        block: &Block,
-        local_env: &Option<LocalEnvRef>,
-        current_module: &Gc<Module>,
-    ) -> EvalResult<Cont> {
-        let Block { terms, expr } = block;
-        let local_env = Some(LocalEnv::extend(local_env.clone()));
-        // TODO: support tailrec for term-only block
-        for e in terms {
-            self.eval_expr(e, &local_env, current_module)?;
-        }
-        if let Some(e) = expr {
-            self.eval_expr_cont(e, &local_env, current_module)
-        } else {
-            Ok(Cont::Finished(Value::null()))
-        }
+        let insns = compile(expr).map_err(EvalError::CompileError)?;
+        let mut vm = VM::new(module.clone(), Rc::new(insns));
+        vm.run(self)
     }
 
     fn let_bind<F: FnMut(Ident, Value) -> EvalResult<()>>(
@@ -624,43 +296,12 @@ impl<L: ModuleLoader> RuntimeContext<L> {
         Ok(())
     }
 
-    fn eval_app(&mut self, f: &Value, args: &[Value]) -> EvalResult {
-        let cont = self.eval_app_cont(f, args)?;
-        self.eval_cont(cont)
-    }
-    fn eval_app_cont(&mut self, f: &Value, args: &[Value]) -> EvalResult<Cont> {
-        match f {
-            Value::Intrinsic(name) => {
-                let f = self
-                    .intrinsics
-                    .get(&*name.0)
-                    .unwrap_or_else(|| panic!("Intrinsic not registered: {}", name));
-                f(args).map(Cont::Finished)
-            }
-            Value::Ref(RefValue::Fun {
-                params,
-                body,
-                local_env,
-                current_module,
-            }) => {
-                if params.len() != args.len() {
-                    return Err(EvalError::ArgumentLength {
-                        expected: params.len(),
-                        actual: args.len(),
-                    });
-                }
-                let local_env = LocalEnv::extend(local_env.clone());
-                for (param, arg) in params.iter().zip(args.iter()) {
-                    LocalEnv::bind(&local_env, param.clone(), arg.clone())?;
-                }
-                Ok(Cont::Next {
-                    current_module: current_module.clone(),
-                    local_env: Some(local_env),
-                    expr: body.clone(),
-                })
-            }
-            _ => Err(EvalError::TypeError("Intrinsic".to_owned(), f.clone())),
-        }
+    pub fn call_intrinsic(&self, name: &str, args: &[Value]) -> EvalResult {
+        let f = self
+            .intrinsics
+            .get(name)
+            .unwrap_or_else(|| panic!("Intrinsic not registered: {}", name));
+        f(args)
     }
 
     pub fn get_var(
@@ -673,26 +314,8 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             .or_else(|| current_module.lookup(&name.0))
             .ok_or_else(|| EvalError::NameNotFound(name.to_string()))
     }
-    fn get_index(&self, value: &Value, index: &Value) -> EvalResult {
-        let index: usize = index.try_into()?;
-        value.use_array(|values| {
-            EvalError::check_array_index(values.len(), index)?;
-            Ok(values[index].clone())
-        })
-    }
 
-    fn eval_args(
-        &mut self,
-        args: &[Expr],
-        local_env: &Option<LocalEnvRef>,
-        current_module: &Gc<Module>,
-    ) -> Result<Vec<Value>, EvalError> {
-        args.iter()
-            .map(|a| self.eval_expr(a, local_env, current_module))
-            .collect::<Result<Vec<_>, _>>()
-    }
-
-    fn as_object<T, F: FnOnce(&ObjectValue) -> EvalResult<T>>(
+    pub fn as_object<T, F: FnOnce(&ObjectValue) -> EvalResult<T>>(
         &self,
         value: &Value,
         f: F,
@@ -707,37 +330,12 @@ impl<L: ModuleLoader> RuntimeContext<L> {
             Value::Intrinsic(_) => &proto.function,
             Value::Ref(RefValue::Array(_)) => &proto.array,
             Value::Ref(RefValue::Fun { .. }) => &proto.function,
+            Value::Ref(RefValue::Fun2 { .. }) => &proto.function,
             Value::Ref(RefValue::Object(obj)) => {
                 return f(&obj.borrow());
             }
         };
         f(&proto.borrow())
-    }
-    fn prop_spec_to_object_key(
-        &mut self,
-        prop: &PropSpec,
-        local_env: &Option<LocalEnvRef>,
-        current_module: &Gc<Module>,
-    ) -> EvalResult<ObjectKey> {
-        let key = match prop {
-            PropSpec::Const(name) => ObjectKey::Str(Rc::new(name.to_owned())),
-            PropSpec::Dyn(expr) => {
-                let name = self.eval_expr(expr, local_env, current_module)?;
-                match name {
-                    Value::Str(name) => ObjectKey::Str(name.clone()),
-                    Value::Sym(name) => ObjectKey::Sym(name.clone()),
-                    _ => return Err(EvalError::type_error("String|Symbol", name.clone())),
-                }
-            }
-        };
-        Ok(key)
-    }
-    fn get_prop(&self, value: &Value, key: &ObjectKey) -> EvalResult {
-        self.as_object(value, |obj| {
-            obj.get(key)
-                .cloned()
-                .ok_or_else(|| EvalError::property_not_found(key.clone()))
-        })
     }
     pub fn bind_var(
         &mut self,
@@ -751,19 +349,6 @@ impl<L: ModuleLoader> RuntimeContext<L> {
         } else {
             // TODO: expr should not bind global
             current_module.bind((*name.0).clone(), value, false, self.allow_rebind_global)
-        }
-    }
-
-    fn reassign_var(
-        &mut self,
-        local_env: &Option<LocalEnvRef>,
-        current_module: &Module,
-        name: &Ident,
-        value: Value,
-    ) -> Result<(), EvalError> {
-        match LocalEnv::reassign_if_exists(local_env, name, value) {
-            Ok(_) => Ok(()),
-            Err(value) => current_module.reassign((*name.0).clone(), value),
         }
     }
 }

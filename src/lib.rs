@@ -1,4 +1,5 @@
 pub mod ast;
+mod compiler;
 pub mod eval_error;
 pub mod intrinsic;
 pub mod module;
@@ -661,6 +662,20 @@ mod test {
                 r#"f(0)"#
             ],
             "OK"
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn generator() {
+        assert_eval_ok!(
+            [
+                "let gen = fn*() => do { yield 1; yield 2; yield 3; }",
+                "let a = []",
+                "for i in gen() { a.push(i) }",
+                "a"
+            ],
+            array_value!(1, 2, 3)
         );
     }
 }
